@@ -1,0 +1,52 @@
+/* ════════════════════════════════
+   variables.css — Design tokens
+   ABC Coffee Management System
+   ════════════════════════════════ */
+
+:root {
+  /* Backgrounds */
+  --bg: #F7F3EE;
+  --surface: #FFFFFF;
+  --surface2: #F2EDE6;
+  --surface3: #EAE3D8;
+
+  /* Browns */
+  --brown-dark: #3D1F0D;
+  --brown: #6B3A1F;
+  --brown-mid: #8B5230;
+  --brown-light: #C4956A;
+
+  /* Creams */
+  --cream: #FDF8F2;
+  --cream2: #F0E4D0;
+  --cream3: #E8D5B8;
+
+  /* Semantic colors */
+  --green: #1E6B45;
+  --green-bg: #EAF4EE;
+  --red: #B83232;
+  --red-bg: #FCEAEA;
+  --amber: #C47A0A;
+  --amber-bg: #FEF4DC;
+  --blue: #1A4E8A;
+  --blue-bg: #EAF1FC;
+
+  /* Text */
+  --text: #1C1008;
+  --text2: #5C3D20;
+  --text3: #A0856A;
+  --text4: #C4A882;
+
+  /* Borders */
+  --border: #E2D5C3;
+  --border2: #CEC0AA;
+
+  /* Shadows */
+  --shadow: 0 1px 3px rgba(61,31,13,.06), 0 4px 12px rgba(61,31,13,.04);
+  --shadow-md: 0 4px 16px rgba(61,31,13,.1), 0 1px 4px rgba(61,31,13,.06);
+
+  /* Border radii */
+  --r: 10px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+}
