@@ -229,7 +229,7 @@ namespace CafeManagement.DTOs
     public record UpdatePromotionRequest(
         string? Name, string? Code, string? DiscountType, decimal? Value,
         decimal? MinOrderValue, decimal? MaxDiscountValue,
-        int? UsageLimit, DateTime? StartDate, DateTime? EndDate);
+        int? UsageLimit, DateTime? StartDate, DateTime? EndDate, bool? IsActive = null);
 
     // ================================================================
     // DASHBOARD

@@ -81,6 +81,20 @@ namespace CafeManagement.Controllers
             if (request.StartDate.HasValue)        promo.StartDate        = request.StartDate;
             if (request.EndDate.HasValue)          promo.EndDate          = request.EndDate;
 
+            if (request.IsActive.HasValue)
+            {
+                if (request.IsActive.Value)
+                {
+                    // Kích hoạt lại (xoá EndDate hoặc đặt tương lai xa)
+                    promo.EndDate = null;
+                }
+                else
+                {
+                    // Dừng khuyến mãi bằng cách set EndDate về quá khứ
+                    promo.EndDate = DateTime.UtcNow.AddMinutes(-1);
+                }
+            }
+
             await _db.SaveChangesAsync();
             return Ok(new ApiResponse<object>(true, "Cập nhật khuyến mãi thành công", null));
         }
