@@ -1,0 +1,442 @@
+@{
+    // Không dùng _Layout vì màn hình bếp thường chạy full-screen riêng
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="refresh" content="30"> <!-- fallback auto-refresh -->
+    <title>🍳 Màn hình Bếp — ABC Coffee</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍳</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+            background: #0d0d0d;
+            color: #f0f0f0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Header ── */
+        .kds-header {
+            background: #1a1a1a;
+            border-bottom: 2px solid #2d2d2d;
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .kds-title { font-size: 20px; font-weight: 800; color: #fff; }
+        .kds-clock { font-size: 24px; font-weight: 700; color: #F39C12; font-variant-numeric: tabular-nums; }
+        .kds-stats {
+            display: flex; gap: 20px;
+        }
+        .kds-stat {
+            text-align: center;
+            background: #2a2a2a;
+            padding: 6px 16px;
+            border-radius: 10px;
+            border: 1px solid #3d3d3d;
+        }
+        .kds-stat-val { font-size: 20px; font-weight: 800; }
+        .kds-stat-lbl { font-size: 10px; color: #888; font-weight: 600; letter-spacing: .5px; }
+        .pending-count { color: #E74C3C; }
+        .cooking-count { color: #F39C12; }
+        .done-count    { color: #2ECC71; }
+
+        /* ── Filter Tabs ── */
+        .kds-tabs {
+            display: flex; gap: 8px;
+            padding: 12px 24px;
+            background: #141414;
+            border-bottom: 1px solid #2d2d2d;
+        }
+        .kds-tab {
+            padding: 7px 18px; border-radius: 8px;
+            border: 1.5px solid #3d3d3d;
+            background: transparent; color: #888;
+            font-family: inherit; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all .15s;
+        }
+        .kds-tab:hover { background: #2a2a2a; color: #fff; }
+        .kds-tab.active { background: #F39C12; border-color: #F39C12; color: #000; }
+        .kds-tab.red { background: #E74C3C; border-color: #E74C3C; color: #fff; }
+
+        /* ── Ticket Grid ── */
+        .kds-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            padding: 20px 24px;
+        }
+
+        /* ── Ticket Card ── */
+        .ticket {
+            background: #1e1e1e;
+            border-radius: 14px;
+            border: 2px solid #333;
+            overflow: hidden;
+            transition: transform .15s, border-color .15s;
+            animation: ticketIn .3s ease;
+        }
+        @@keyframes ticketIn {
+            from { opacity: 0; transform: scale(.95) translateY(10px); }
+            to   { opacity: 1; transform: scale(1)  translateY(0); }
+        }
+        .ticket:hover { transform: translateY(-3px); }
+        .ticket.urgent { border-color: #E74C3C; animation: pulse 1s ease infinite alternate; }
+        @@keyframes pulse {
+            from { box-shadow: 0 0 0 0 rgba(231,76,60,0); }
+            to   { box-shadow: 0 0 0 6px rgba(231,76,60,.3); }
+        }
+        .ticket.done { border-color: #2ECC71; opacity: .75; }
+
+        .ticket-head {
+            padding: 12px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid #2d2d2d;
+        }
+        .ticket-table {
+            font-size: 18px; font-weight: 800; color: #fff;
+        }
+        .ticket-order {
+            font-size: 11px; color: #666; margin-top: 2px;
+        }
+        .ticket-elapsed {
+            font-size: 22px; font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+        .elapsed-ok     { color: #2ECC71; }
+        .elapsed-warn   { color: #F39C12; }
+        .elapsed-urgent { color: #E74C3C; }
+
+        .ticket-status {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 10px; border-radius: 20px;
+            font-size: 11px; font-weight: 700; letter-spacing: .3px;
+        }
+        .status-pending  { background: rgba(231,76,60,.15); color: #E74C3C; }
+        .status-cooking  { background: rgba(243,156,18,.15); color: #F39C12; }
+        .status-served   { background: rgba(46,204,113,.15); color: #2ECC71; }
+
+        .ticket-items {
+            padding: 12px 16px;
+            min-height: 80px;
+        }
+        .ticket-item {
+            display: flex; align-items: flex-start;
+            gap: 10px; padding: 8px 0;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        .ticket-item:last-child { border-bottom: none; }
+        .item-qty {
+            width: 28px; height: 28px; border-radius: 8px;
+            background: #333; color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 800; flex-shrink: 0;
+        }
+        .item-info { flex: 1; }
+        .item-name { font-size: 14px; font-weight: 700; color: #f0f0f0; }
+        .item-note { font-size: 11px; color: #F39C12; margin-top: 2px; font-style: italic; }
+
+        .ticket-foot {
+            padding: 10px 16px;
+            border-top: 1px solid #2d2d2d;
+            display: flex; gap: 8px;
+        }
+        .kds-btn {
+            flex: 1; padding: 9px; border-radius: 8px;
+            border: none; font-family: inherit; font-size: 13px; font-weight: 700;
+            cursor: pointer; transition: all .15s;
+        }
+        .kds-btn-cook   { background: #F39C12; color: #000; }
+        .kds-btn-cook:hover { background: #e67e22; }
+        .kds-btn-done   { background: #2ECC71; color: #000; }
+        .kds-btn-done:hover { background: #27ae60; }
+        .kds-btn-recall { background: #3d3d3d; color: #aaa; }
+        .kds-btn-recall:hover { background: #555; color: #fff; }
+
+        /* ── Empty / Loading ── */
+        .kds-empty {
+            text-align: center; padding: 80px 20px;
+            color: #444; grid-column: 1/-1;
+        }
+        .kds-empty-icon { font-size: 64px; margin-bottom: 16px; }
+        .kds-empty-text { font-size: 18px; font-weight: 700; color: #555; }
+
+        .skeleton {
+            background: linear-gradient(90deg, #1e1e1e 25%, #2a2a2a 50%, #1e1e1e 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 14px; height: 220px;
+        }
+        @@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+        /* ── Toast ── */
+        #kds-toast {
+            position: fixed; bottom: 20px; right: 20px;
+            background: #1a1a1a; color: #fff;
+            padding: 12px 20px; border-radius: 10px;
+            border-left: 4px solid #2ECC71;
+            font-size: 14px; font-weight: 600;
+            box-shadow: 0 8px 24px rgba(0,0,0,.5);
+            transform: translateX(110%); transition: transform .3s ease;
+            z-index: 9999; max-width: 320px;
+        }
+        #kds-toast.show { transform: translateX(0); }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="kds-header">
+    <div>
+        <div class="kds-title">🍳 Màn hình Bếp — ABC Coffee</div>
+        <div style="font-size:11px;color:#666;margin-top:2px;">Tự động cập nhật mỗi 15 giây</div>
+    </div>
+    <div class="kds-stats">
+        <div class="kds-stat">
+            <div class="kds-stat-val pending-count" id="cntPending">0</div>
+            <div class="kds-stat-lbl">CHỜ XỬ LÝ</div>
+        </div>
+        <div class="kds-stat">
+            <div class="kds-stat-val cooking-count" id="cntCooking">0</div>
+            <div class="kds-stat-lbl">ĐANG LÀM</div>
+        </div>
+        <div class="kds-stat">
+            <div class="kds-stat-val done-count" id="cntDone">0</div>
+            <div class="kds-stat-lbl">ĐÃ XONG</div>
+        </div>
+    </div>
+    <div class="kds-clock" id="kdsClock">--:--:--</div>
+</header>
+
+<!-- Filter Tabs -->
+<div class="kds-tabs">
+    <button class="kds-tab active" id="tab-all"     onclick="setFilter('ALL')">🍽️ Tất cả</button>
+    <button class="kds-tab"        id="tab-pending" onclick="setFilter('PENDING')">🔴 Chờ xử lý</button>
+    <button class="kds-tab"        id="tab-cooking" onclick="setFilter('COOKING')">🟡 Đang làm</button>
+    <button class="kds-tab"        id="tab-served"  onclick="setFilter('SERVED')">🟢 Đã phục vụ</button>
+</div>
+
+<!-- Ticket Grid -->
+<div class="kds-grid" id="kdsGrid">
+    <!-- Skeleton loading -->
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+</div>
+
+<div id="kds-toast"></div>
+
+<script>
+// ── Config ───────────────────────────────────────────────
+const BRANCH_ID   = parseInt(new URLSearchParams(location.search).get('branchId') || '1');
+const JWT_TOKEN   = new URLSearchParams(location.search).get('token') || '';
+const POLL_MS     = 15000; // 15 giây
+
+let allTickets    = [];
+let currentFilter = 'ALL';
+let pollRef       = null;
+
+// ── Clock ─────────────────────────────────────────────────
+function updateClock() {
+    document.getElementById('kdsClock').textContent =
+        new Date().toLocaleTimeString('vi-VN', { hour12: false });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Toast ─────────────────────────────────────────────────
+function kdsToast(msg, success = true) {
+    const el = document.getElementById('kds-toast');
+    el.textContent = msg;
+    el.style.borderLeftColor = success ? '#2ECC71' : '#E74C3C';
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── Fetch helper ──────────────────────────────────────────
+async function kdsFetch(url, options = {}) {
+    const res = await fetch(url, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + JWT_TOKEN, ...(options.headers || {}) }
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || 'API error');
+    return json.data;
+}
+
+// ── Load orders ───────────────────────────────────────────
+async function loadOrders() {
+    try {
+        // Load PENDING + COOKING + SERVED orders
+        const [pending, cooking, served] = await Promise.all([
+            kdsFetch('/api/orders?branchId=' + BRANCH_ID + '&status=PENDING&pageSize=50'),
+            kdsFetch('/api/orders?branchId=' + BRANCH_ID + '&status=COOKING&pageSize=50'),
+            kdsFetch('/api/orders?branchId=' + BRANCH_ID + '&status=SERVED&pageSize=20')
+        ]);
+
+        // Load detail for items (note per item)
+        const allOrders = [
+            ...(pending?.items || []),
+            ...(cooking?.items || []),
+            ...(served?.items || [])
+        ];
+
+        // Fetch detail for each order to get items & notes
+        const detailed = await Promise.allSettled(
+            allOrders.map(o => kdsFetch('/api/orders/' + o.id))
+        );
+
+        allTickets = detailed
+            .filter(r => r.status === 'fulfilled')
+            .map(r => r.value);
+
+        updateStats();
+        renderTickets();
+    } catch (e) {
+        console.error('KDS load error:', e);
+    }
+}
+
+// ── Stats ─────────────────────────────────────────────────
+function updateStats() {
+    const cnt = (status) => allTickets.filter(t => t.status === status).length;
+    document.getElementById('cntPending').textContent = cnt('PENDING');
+    document.getElementById('cntCooking').textContent = cnt('COOKING');
+    document.getElementById('cntDone').textContent    = cnt('SERVED');
+}
+
+// ── Filter tabs ───────────────────────────────────────────
+function setFilter(f) {
+    currentFilter = f;
+    document.querySelectorAll('.kds-tab').forEach(t => t.classList.remove('active', 'red'));
+    const tabId = 'tab-' + f.toLowerCase();
+    const tab = document.getElementById(tabId) || document.getElementById('tab-all');
+    tab.classList.add('active');
+    if (f === 'PENDING') tab.classList.add('red');
+    renderTickets();
+}
+
+// ── Render ────────────────────────────────────────────────
+function elapsed(createdAt) {
+    const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
+    return mins;
+}
+
+function elapsedClass(mins) {
+    if (mins < 5)  return 'elapsed-ok';
+    if (mins < 10) return 'elapsed-warn';
+    return 'elapsed-urgent';
+}
+
+function statusLabel(s) {
+    const map = {
+        PENDING: ['🔴', 'status-pending', 'Chờ xử lý'],
+        COOKING: ['🟡', 'status-cooking', 'Đang làm'],
+        SERVED:  ['🟢', 'status-served',  'Đã phục vụ']
+    };
+    return map[s] || ['⚪', '', s];
+}
+
+function renderTickets() {
+    const grid = document.getElementById('kdsGrid');
+    const filtered = currentFilter === 'ALL'
+        ? allTickets
+        : allTickets.filter(t => t.status === currentFilter);
+
+    // Sort: PENDING first, then COOKING, then by createdAt
+    const priority = { PENDING: 0, COOKING: 1, SERVED: 2 };
+    filtered.sort((a, b) => {
+        const pd = (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
+        if (pd !== 0) return pd;
+        return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+
+    if (!filtered.length) {
+        grid.innerHTML = '<div class="kds-empty"><div class="kds-empty-icon">✅</div>' +
+            '<div class="kds-empty-text">Không có đơn hàng nào</div></div>';
+        return;
+    }
+
+    grid.innerHTML = filtered.map(ticket => {
+        const mins  = elapsed(ticket.createdAt);
+        const eClass = elapsedClass(mins);
+        const isUrgent = ticket.status === 'PENDING' && mins >= 10;
+        const [sIcon, sClass, sText] = statusLabel(ticket.status);
+
+        const itemsHtml = (ticket.items || []).map(item =>
+            '<div class="ticket-item">' +
+                '<div class="item-qty">' + item.quantity + '</div>' +
+                '<div class="item-info">' +
+                    '<div class="item-name">' + item.itemName + '</div>' +
+                    (item.note ? '<div class="item-note">📝 ' + item.note + '</div>' : '') +
+                '</div>' +
+            '</div>'
+        ).join('');
+
+        // Action buttons based on status
+        let btns = '';
+        if (ticket.status === 'PENDING') {
+            btns = '<button class="kds-btn kds-btn-cook" onclick="updateStatus(' + ticket.id + ',\'COOKING\')">🍳 Bắt đầu làm</button>';
+        } else if (ticket.status === 'COOKING') {
+            btns = '<button class="kds-btn kds-btn-done" onclick="updateStatus(' + ticket.id + ',\'SERVED\')">✅ Đã xong</button>' +
+                   '<button class="kds-btn kds-btn-recall" onclick="updateStatus(' + ticket.id + ',\'PENDING\')">↩ Hoàn lại</button>';
+        } else {
+            btns = '<button class="kds-btn kds-btn-recall" style="background:#2a2a2a;" disabled>✅ Đã phục vụ</button>';
+        }
+
+        return '<div class="ticket ' + (isUrgent ? 'urgent' : ticket.status === 'SERVED' ? 'done' : '') + '" id="ticket-' + ticket.id + '">' +
+            '<div class="ticket-head">' +
+                '<div>' +
+                    '<div class="ticket-table">' + (ticket.tableName || 'Mang về') + '</div>' +
+                    '<div class="ticket-order">Order #' + ticket.id + ' · <span class="ticket-status ' + sClass + '">' + sIcon + ' ' + sText + '</span></div>' +
+                '</div>' +
+                '<div class="ticket-elapsed ' + eClass + '">' + mins + '<span style="font-size:14px;font-weight:600;opacity:.7">min</span></div>' +
+            '</div>' +
+            '<div class="ticket-items">' + (itemsHtml || '<div style="color:#555;font-size:13px;padding:10px 0;">Không có món</div>') + '</div>' +
+            '<div class="ticket-foot">' + btns + '</div>' +
+        '</div>';
+    }).join('');
+}
+
+// ── Update order status ────────────────────────────────────
+async function updateStatus(orderId, newStatus) {
+    const btn = event.currentTarget;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
+    try {
+        await kdsFetch('/api/orders/' + orderId + '/status', {
+            method: 'PATCH',
+            body: JSON.stringify({ Status: newStatus, Note: 'Cập nhật từ màn hình bếp' })
+        });
+        const labels = { COOKING: '🍳 Đang làm', SERVED: '✅ Hoàn thành', PENDING: '↩ Đã hoàn lại' };
+        kdsToast('Order #' + orderId + ' → ' + (labels[newStatus] || newStatus));
+
+        // Update local state immediately for snappy UX
+        const ticket = allTickets.find(t => t.id === orderId);
+        if (ticket) { ticket.status = newStatus; }
+        updateStats();
+        renderTickets();
+    } catch (e) {
+        kdsToast('❌ ' + e.message, false);
+        if (btn) { btn.disabled = false; }
+    }
+}
+
+// ── Polling ───────────────────────────────────────────────
+function startPolling() {
+    loadOrders();
+    pollRef = setInterval(loadOrders, POLL_MS);
+}
+
+document.addEventListener('DOMContentLoaded', startPolling);
+</script>
+</body>
+</html>

@@ -1,0 +1,500 @@
+@{
+    Layout = null; // Không dùng layout admin — trang public riêng
+    var tableId = Context.Request.Query["tableId"].ToString();
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>ABC Coffee — Thực Đơn</title>
+    <meta name="description" content="Xem thực đơn ABC Coffee — đồ uống và bánh ngon mỗi ngày">
+    <meta name="theme-color" content="#6B3A1F">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --brown:       #6B3A1F;
+            --brown-dark:  #3E1F00;
+            --cream:       #FFF8F0;
+            --cream2:      #FDF3E7;
+            --text:        #1A0F00;
+            --text2:       #4A3728;
+            --text3:       #8B7355;
+            --red:         #E74C3C;
+            --green:       #27AE60;
+            --amber:       #F39C12;
+            --border:      rgba(107,58,31,.12);
+            --shadow:      0 4px 20px rgba(107,58,31,.10);
+            --shadow-lg:   0 12px 40px rgba(107,58,31,.18);
+            --r:           12px;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--cream);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Hero Header ── */
+        .hero {
+            background: linear-gradient(160deg, var(--brown-dark) 0%, var(--brown) 60%, #A0522D 100%);
+            padding: 32px 20px 48px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '☕';
+            position: absolute;
+            right: -10px;
+            bottom: -20px;
+            font-size: 140px;
+            opacity: .06;
+            pointer-events: none;
+            filter: blur(1px);
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,.12);
+            border: 1px solid rgba(255,255,255,.2);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 12px;
+            color: rgba(255,255,255,.85);
+            font-weight: 600;
+            letter-spacing: .5px;
+            margin-bottom: 14px;
+        }
+        .hero-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 34px;
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.2;
+            margin-bottom: 6px;
+        }
+        .hero-sub {
+            font-size: 14px;
+            color: rgba(255,255,255,.65);
+            margin-bottom: 20px;
+        }
+        .hero-table-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,.15);
+            border: 1px solid rgba(255,255,255,.25);
+            border-radius: var(--r);
+            padding: 10px 18px;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 700;
+            backdrop-filter: blur(4px);
+        }
+
+        /* ── Search bar ── */
+        .search-bar {
+            background: #fff;
+            border-radius: 16px;
+            padding: 0 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: var(--shadow-lg);
+            margin: -24px 16px 0;
+            position: relative;
+            z-index: 10;
+            border: 1px solid var(--border);
+        }
+        .search-bar input {
+            flex: 1;
+            border: none;
+            outline: none;
+            padding: 16px 0;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            background: transparent;
+            color: var(--text);
+        }
+        .search-bar input::placeholder { color: var(--text3); }
+
+        /* ── Category Pills ── */
+        .cat-scroll {
+            padding: 20px 16px 8px;
+            overflow-x: auto;
+            display: flex;
+            gap: 8px;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        .cat-scroll::-webkit-scrollbar { display: none; }
+        .cat-pill {
+            flex-shrink: 0;
+            padding: 8px 18px;
+            border-radius: 24px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1.5px solid var(--border);
+            background: #fff;
+            color: var(--text2);
+            cursor: pointer;
+            transition: all .2s;
+            white-space: nowrap;
+        }
+        .cat-pill.active {
+            background: var(--brown);
+            color: #fff;
+            border-color: var(--brown);
+            box-shadow: 0 4px 14px rgba(107,58,31,.3);
+        }
+        .cat-pill:hover:not(.active) {
+            border-color: var(--brown);
+            color: var(--brown);
+        }
+
+        /* ── Section title ── */
+        .section-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--brown-dark);
+            padding: 16px 16px 8px;
+        }
+
+        /* ── Item Cards ── */
+        .items-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            padding: 0 12px 24px;
+        }
+        @@media (min-width: 500px) { .items-grid { grid-template-columns: repeat(3, 1fr); } }
+        @@media (min-width: 768px) { .items-grid { grid-template-columns: repeat(4, 1fr); } }
+
+        .item-card {
+            background: #fff;
+            border-radius: var(--r);
+            overflow: hidden;
+            box-shadow: 0 2px 12px rgba(107,58,31,.08);
+            transition: transform .2s, box-shadow .2s;
+            cursor: default;
+        }
+        .item-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
+        .item-img {
+            width: 100%;
+            aspect-ratio: 4/3;
+            object-fit: cover;
+            display: block;
+            background: var(--cream2);
+        }
+        .item-body { padding: 10px 12px 12px; }
+        .item-cat {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 3px;
+        }
+        .item-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--brown-dark);
+            line-height: 1.3;
+            margin-bottom: 4px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .item-desc {
+            font-size: 11px;
+            color: var(--text3);
+            line-height: 1.4;
+            margin-bottom: 6px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .item-price {
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--red);
+        }
+        .item-unavailable {
+            opacity: .45;
+            filter: grayscale(.5);
+        }
+        .unavail-tag {
+            display: inline-block;
+            background: #f5f5f5;
+            color: #999;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 8px;
+            margin-top: 4px;
+            text-transform: uppercase;
+        }
+
+        /* ── Skeleton ── */
+        .skeleton { animation: pulse 1.4s infinite; background: linear-gradient(90deg,#f0e8df 25%,#f8f0e8 50%,#f0e8df 75%); background-size: 200% 100%; border-radius: var(--r); }
+        @@keyframes pulse { 0%,100%{background-position:0 0}50%{background-position:100% 0} }
+
+        /* ── Footer ── */
+        .pub-footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: var(--text3);
+            border-top: 1px solid var(--border);
+            margin-top: 8px;
+        }
+        .pub-footer strong { color: var(--brown); }
+
+        /* ── Empty state ── */
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--text3);
+            grid-column: 1 / -1;
+        }
+        .empty-state .es-icon { font-size: 48px; margin-bottom: 12px; }
+        .empty-state .es-title { font-size: 16px; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
+
+        /* ── Detail modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,.55);
+            z-index: 1000;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 0;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-sheet {
+            background: #fff;
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp .28s ease;
+        }
+        @@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+        .modal-drag { width: 40px; height: 4px; background: #e0d4c8; border-radius: 2px; margin: 12px auto 0; }
+        .modal-img { width: 100%; max-height: 240px; object-fit: cover; }
+        .modal-info { padding: 20px 20px 32px; }
+        .modal-cat { font-size: 12px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+        .modal-name { font-size: 22px; font-weight: 800; color: var(--brown-dark); margin-bottom: 8px; line-height: 1.2; }
+        .modal-desc { font-size: 14px; color: var(--text2); line-height: 1.6; margin-bottom: 16px; }
+        .modal-price { font-size: 26px; font-weight: 800; color: var(--red); }
+        .modal-close-btn {
+            position: absolute; top: 12px; right: 16px;
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: rgba(0,0,0,.5);
+            color: #fff; border: none; font-size: 18px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Hero ── -->
+<div class="hero">
+    <div class="hero-badge">📱 Xem thực đơn</div>
+    <h1 class="hero-title">ABC Coffee ☕</h1>
+    <p class="hero-sub">Đồ uống ngon — Không gian thư giãn</p>
+    <div id="tableChip" class="hero-table-chip" style="display:none;">
+        🪑 <span id="tableNameLabel">Bàn —</span>
+    </div>
+</div>
+
+<!-- ── Search ── -->
+<div class="search-bar">
+    <span>🔍</span>
+    <input type="search" id="searchInput" placeholder="Tìm món bạn muốn..." autocomplete="off" oninput="filterItems()">
+</div>
+
+<!-- ── Categories ── -->
+<div class="cat-scroll" id="catScroll">
+    <div class="skeleton" style="width:80px;height:36px;border-radius:24px;flex-shrink:0;"></div>
+    <div class="skeleton" style="width:100px;height:36px;border-radius:24px;flex-shrink:0;"></div>
+    <div class="skeleton" style="width:90px;height:36px;border-radius:24px;flex-shrink:0;"></div>
+</div>
+
+<!-- ── Items ── -->
+<div class="section-title" id="sectionTitle">☕ Tất cả món</div>
+<div class="items-grid" id="itemsGrid">
+    @for (int i = 0; i < 6; i++) {
+        <div class="skeleton" style="height:220px;"></div>
+    }
+</div>
+
+<!-- ── Detail Modal ── -->
+<div class="modal-overlay" id="detailModal" onclick="if(event.target===this)closeDetail()">
+    <div class="modal-sheet" style="position:relative;">
+        <div class="modal-drag"></div>
+        <button class="modal-close-btn" onclick="closeDetail()">×</button>
+        <img id="detailImg" class="modal-img" src="" alt="" onerror="this.src='https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&q=80'">
+        <div class="modal-info">
+            <div class="modal-cat" id="detailCat"></div>
+            <div class="modal-name" id="detailName"></div>
+            <div class="modal-desc" id="detailDesc"></div>
+            <div class="modal-price" id="detailPrice"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Footer ── -->
+<footer class="pub-footer">
+    <strong>ABC Coffee</strong> — Cảm ơn bạn đã ghé thăm! ☕<br>
+    Gọi nhân viên hoặc đặt tại quầy để order
+</footer>
+
+<script>
+const TABLE_ID    = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(tableId));
+let allItems      = [];
+let allCategories = [];
+let activeCatId   = 'all';
+
+function formatVND(val) {
+    return new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND'}).format(val);
+}
+
+// ── Load table info (optional, only show if tableId given) ──────────
+async function loadTableInfo() {
+    if (!TABLE_ID) return;
+    try {
+        const res = await fetch(`/api/tables?branchId=1`);
+        if (!res.ok) return;
+        const j = await res.json();
+        const tables = j?.data || j || [];
+        const t = tables.find(x => x.id == TABLE_ID);
+        if (t) {
+            document.getElementById('tableNameLabel').textContent = t.name;
+            document.getElementById('tableChip').style.display = '';
+        }
+    } catch {}
+}
+
+// ── Load categories ─────────────────────────────────────────────────
+async function loadCategories() {
+    try {
+        const res = await fetch('/api/menu/categories');
+        if (!res.ok) throw new Error('Lỗi tải danh mục');
+        const j = await res.json();
+        allCategories = j?.data || j || [];
+        renderCategories();
+    } catch(e) {
+        document.getElementById('catScroll').innerHTML = '';
+    }
+}
+
+// ── Load items ──────────────────────────────────────────────────────
+async function loadItems() {
+    try {
+        const res = await fetch('/api/menu/items');
+        if (!res.ok) throw new Error('Lỗi tải thực đơn');
+        const j = await res.json();
+        allItems = (j?.data || j || []).filter(i => i.isAvailable);
+        renderItems();
+    } catch(e) {
+        document.getElementById('itemsGrid').innerHTML = `
+            <div class="empty-state">
+                <div class="es-icon">😔</div>
+                <div class="es-title">Không thể tải thực đơn</div>
+                <div>Vui lòng thử lại sau</div>
+            </div>`;
+    }
+}
+
+// ── Render categories ────────────────────────────────────────────────
+function renderCategories() {
+    const scroll = document.getElementById('catScroll');
+    scroll.innerHTML = `<button class="cat-pill ${activeCatId==='all'?'active':''}" onclick="switchCat('all')">🍽️ Tất cả</button>`;
+    allCategories.forEach(c => {
+        const count = allItems.filter(i => i.categoryId == c.id).length;
+        if (count === 0) return;
+        scroll.innerHTML += `<button class="cat-pill ${activeCatId==c.id?'active':''}" onclick="switchCat(${c.id})">${c.name} <span style="opacity:.6;font-weight:500;">${count}</span></button>`;
+    });
+}
+
+function switchCat(id) {
+    activeCatId = id;
+    const active = allCategories.find(c => c.id == id);
+    document.getElementById('sectionTitle').textContent =
+        id === 'all' ? '☕ Tất cả món' : `${active?.name || ''} (${allItems.filter(i=>i.categoryId==id).length})`;
+    renderCategories();
+    filterItems();
+}
+
+// ── Filter items ─────────────────────────────────────────────────────
+function filterItems() {
+    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    let filtered = allItems;
+    if (activeCatId !== 'all') filtered = filtered.filter(i => i.categoryId == activeCatId);
+    if (q) filtered = filtered.filter(i => i.name.toLowerCase().includes(q) || (i.description||'').toLowerCase().includes(q));
+    renderItems(filtered);
+}
+
+// ── Render items ─────────────────────────────────────────────────────
+const fallback = 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&q=70';
+function renderItems(items = allItems) {
+    const grid = document.getElementById('itemsGrid');
+    if (!items.length) {
+        grid.innerHTML = `<div class="empty-state"><div class="es-icon">☕</div><div class="es-title">Không tìm thấy món</div><div>Thử tìm kiếm khác nhé!</div></div>`;
+        return;
+    }
+    grid.innerHTML = items.map(item => `
+        <div class="item-card" onclick="openDetail(${item.id})">
+            <img class="item-img"
+                 src="${item.imageUrl || fallback}"
+                 alt="${item.name}"
+                 onerror="this.src='${fallback}'">
+            <div class="item-body">
+                <div class="item-cat">${item.categoryName || ''}</div>
+                <div class="item-name">${item.name}</div>
+                ${item.description ? `<div class="item-desc">${item.description}</div>` : ''}
+                <div class="item-price">${formatVND(item.price)}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ── Detail modal ─────────────────────────────────────────────────────
+function openDetail(id) {
+    const item = allItems.find(i => i.id === id);
+    if (!item) return;
+    document.getElementById('detailImg').src    = item.imageUrl || fallback;
+    document.getElementById('detailImg').alt    = item.name;
+    document.getElementById('detailCat').textContent   = item.categoryName || '';
+    document.getElementById('detailName').textContent  = item.name;
+    document.getElementById('detailDesc').textContent  = item.description || 'Không có mô tả.';
+    document.getElementById('detailPrice').textContent = formatVND(item.price);
+    document.getElementById('detailModal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+function closeDetail() {
+    document.getElementById('detailModal').classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    await Promise.all([loadCategories(), loadItems()]);
+    renderCategories();  // re-render after items loaded to show counts
+    loadTableInfo();
+});
+</script>
+</body>
+</html>

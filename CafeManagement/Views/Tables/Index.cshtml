@@ -1,0 +1,340 @@
+@{
+    Layout = "_Layout";
+    ViewBag.ActivePage = "Tables";
+    ViewBag.PageTitle = "Quản lý Bàn";
+    ViewBag.Title = "Bàn";
+}
+
+<div class="page-header">
+    <div>
+        <div class="page-title">🪑 Quản lý Bàn</div>
+        <div class="page-subtitle">Sơ đồ bàn và trạng thái hiện tại</div>
+    </div>
+    <div class="flex gap-8" style="align-items:center;">
+        <div id="tableLastUpdated" style="font-size:12px;color:var(--text3);"></div>
+        <button class="btn btn-outline btn-sm" id="btnPausePoll" onclick="togglePoll()"
+                style="font-size:12px;padding:6px 12px;">⏸ Tự động</button>
+        <span id="tablePollCountdown" style="font-size:12px;color:var(--text3);min-width:140px;"></span>
+        <button class="btn btn-outline" onclick="loadTables()" title="Làm mới">🔄 Làm mới</button>
+        <button class="btn btn-primary" id="btnAddTable" onclick="openAddModal()" style="display:none;">＋ Thêm bàn</button>
+    </div>
+</div>
+
+<!-- Legend -->
+<div class="flex gap-12" style="margin-bottom:20px; flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:6px;font-size:13px;">
+        <div style="width:14px;height:14px;border-radius:3px;background:var(--green-light);"></div> Trống
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:13px;">
+        <div style="width:14px;height:14px;border-radius:3px;background:var(--amber);"></div> Có khách
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:13px;">
+        <div style="width:14px;height:14px;border-radius:3px;background:var(--yellow);"></div> Đang dọn
+    </div>
+    <div id="tableSummary" style="margin-left:auto;font-size:13px;color:var(--text3);"></div>
+</div>
+
+<!-- Table Grid -->
+<div id="tableGrid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:16px;">
+    @for (int i = 0; i < 6; i++) {
+        <div class="card skeleton" style="height:180px;"></div>
+    }
+</div>
+
+<!-- Add Table Modal -->
+<div class="modal-overlay" id="addTableModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">🪑 Thêm bàn mới</div>
+            <button class="modal-close" onclick="closeModal('addTableModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Tên bàn <span style="color:var(--red)">*</span></label>
+                <input type="text" id="tableName" class="form-control" placeholder="VD: Bàn 01, Bàn VIP 1...">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Sức chứa (người)</label>
+                <input type="number" id="tableCapacity" class="form-control" value="4" min="1" max="20">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('addTableModal')">Hủy</button>
+            <button class="btn btn-primary" onclick="saveTable()">💾 Lưu bàn</button>
+        </div>
+    </div>
+</div>
+
+<!-- Status Modal -->
+<div class="modal-overlay" id="statusModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title" id="statusModalTitle">Cập nhật trạng thái bàn</div>
+            <button class="modal-close" onclick="closeModal('statusModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="selectedTableId">
+            <div class="form-group">
+                <label class="form-label">Trạng thái mới</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:8px;">
+                    <label style="cursor:pointer;">
+                        <input type="radio" name="tableStatus" value="EMPTY" style="display:none;" onclick="selectStatus(this)">
+                        <div class="status-opt" data-val="EMPTY" style="border:2px solid var(--border);border-radius:var(--r);padding:16px 8px;text-align:center;transition:.2s;">
+                            <div style="font-size:28px;margin-bottom:6px;">✅</div>
+                            <div style="font-weight:600;font-size:13px;color:var(--green);">Trống</div>
+                        </div>
+                    </label>
+                    <label style="cursor:pointer;">
+                        <input type="radio" name="tableStatus" value="OCCUPIED" style="display:none;" onclick="selectStatus(this)">
+                        <div class="status-opt" data-val="OCCUPIED" style="border:2px solid var(--border);border-radius:var(--r);padding:16px 8px;text-align:center;transition:.2s;">
+                            <div style="font-size:28px;margin-bottom:6px;">👥</div>
+                            <div style="font-weight:600;font-size:13px;color:var(--amber);">Có khách</div>
+                        </div>
+                    </label>
+                    <label style="cursor:pointer;">
+                        <input type="radio" name="tableStatus" value="CLEANING" style="display:none;" onclick="selectStatus(this)">
+                        <div class="status-opt" data-val="CLEANING" style="border:2px solid var(--border);border-radius:var(--r);padding:16px 8px;text-align:center;transition:.2s;">
+                            <div style="font-size:28px;margin-bottom:6px;">🧹</div>
+                            <div style="font-weight:600;font-size:13px;color:var(--yellow);">Đang dọn</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('statusModal')">Hủy</button>
+            <button class="btn btn-primary" onclick="updateStatus()">✅ Cập nhật</button>
+        </div>
+    </div>
+</div>
+
+<!-- QR Code Modal -->
+<div class="modal-overlay" id="qrModal">
+    <div class="modal" style="max-width:360px;">
+        <div class="modal-header">
+            <div class="modal-title">📱 QR Code - <span id="qrTableName">Bàn</span></div>
+            <button class="modal-close" onclick="closeModal('qrModal')">×</button>
+        </div>
+        <div class="modal-body" style="text-align:center;">
+            <div id="qrCanvas" style="display:inline-block;padding:16px;background:#fff;border-radius:var(--r);box-shadow:0 2px 12px rgba(0,0,0,.08);"></div>
+            <div style="margin-top:16px;font-size:12px;color:var(--text3);line-height:1.6;">
+                Khách scan QR để xem thực đơn<br>
+                <span id="qrUrlLabel" style="font-family:monospace;font-size:11px;"></span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('qrModal')">Đóng</button>
+            <button class="btn btn-primary" onclick="downloadQR()">⬇️ Tải QR</button>
+        </div>
+    </div>
+</div>
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+let selectedStatus = null;
+let _pollRef       = null;
+let _pollSeconds   = 30;
+let _pollPaused    = false;
+let _pollTimer     = null;
+
+function togglePoll() {
+    _pollPaused = !_pollPaused;
+    const btn = document.getElementById('btnPausePoll');
+    if (_pollPaused) {
+        btn.textContent = '▶ Tự động';
+        btn.classList.add('btn-warning');
+        document.getElementById('tablePollCountdown').textContent = '⏸ Đã tạm dừng';
+    } else {
+        btn.textContent = '⏸ Tự động';
+        btn.classList.remove('btn-warning');
+        startCountdown();
+    }
+}
+
+function startCountdown() {
+    clearInterval(_pollTimer);
+    _pollSeconds = 30;
+    updateCountdownUI();
+    _pollTimer = setInterval(() => {
+        if (_pollPaused) return;
+        _pollSeconds--;
+        updateCountdownUI();
+        if (_pollSeconds <= 0) {
+            _pollSeconds = 30;
+            loadTables(true); // silent=true: no skeleton flash
+        }
+    }, 1000);
+}
+
+function updateCountdownUI() {
+    const el = document.getElementById('tablePollCountdown');
+    if (el) el.textContent = _pollPaused ? '' : `🔄 Làm mới sau ${_pollSeconds}s`;
+}
+
+function selectStatus(radio) {
+    selectedStatus = radio.value;
+    document.querySelectorAll('.status-opt').forEach(opt => {
+        opt.style.border = '2px solid var(--border)';
+        opt.style.background = '';
+    });
+    const opt = document.querySelector(`.status-opt[data-val="${radio.value}"]`);
+    if (opt) { opt.style.border = '2px solid var(--brown-light)'; opt.style.background = 'var(--cream2)'; }
+}
+
+async function loadTables(silent = false) {
+    const grid = document.getElementById('tableGrid');
+    if (!silent) {
+        grid.innerHTML = Array(6).fill('').map(() => `<div class="card skeleton" style="height:180px;"></div>`).join('');
+    }
+    try {
+        const tables = await apiFetch(`/api/tables?branchId=${BRANCH_ID}`);
+        // Show Add button only for managers
+        if (isManagerOrAdmin()) document.getElementById('btnAddTable').style.display = '';
+        // Summary
+        const empty    = tables.filter(t => t.status === 'EMPTY').length;
+        const occupied = tables.filter(t => t.status === 'OCCUPIED').length;
+        const cleaning = tables.filter(t => t.status === 'CLEANING').length;
+        document.getElementById('tableSummary').textContent =
+            `Trống: ${empty} | Có khách: ${occupied} | Đang dọn: ${cleaning} | Tổng: ${tables.length}`;
+
+        // Last updated
+        const now = new Date();
+        const updEl = document.getElementById('tableLastUpdated');
+        if (updEl) updEl.textContent = `Đã cập nhật: ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+
+        if (!tables.length) {
+            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="es-icon">🪑</div><div class="es-title">Chưa có bàn nào</div><div class="es-text">Nhấn "Thêm bàn" để bắt đầu</div></div>`;
+            return;
+        }
+        const statusConfig = {
+            EMPTY:    { label:'Trống',    color:'var(--green-light)', border:'#27AE60', textColor:'#1D8348', icon:'✅' },
+            OCCUPIED: { label:'Có khách', color:'#FFF3E0',         border:'var(--amber)', textColor:'#D35400', icon:'👥' },
+            CLEANING: { label:'Đang dọn', color:'#FFFFF0',         border:'var(--yellow)', textColor:'#B7950B', icon:'🧹' },
+        };
+        grid.innerHTML = tables.map(t => {
+            const sc = statusConfig[t.status] || statusConfig.EMPTY;
+            return `<div class="card" style="border-top:4px solid ${sc.border};cursor:pointer;transition:transform .2s,box-shadow .2s;"
+                         onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='var(--shadow-lg)'"
+                         onmouseleave="this.style.transform='';this.style.boxShadow=''">
+                <div style="padding:20px;text-align:center;" onclick="openStatusModal(${t.id}, '${t.name.replace(/'/g,'\\u0027')}', '${t.status}')">
+                    <div style="font-size:36px;margin-bottom:8px;">${sc.icon}</div>
+                    <div style="font-size:18px;font-weight:800;color:var(--brown-dark);margin-bottom:4px;">${t.name}</div>
+                    <div style="font-size:11px;font-weight:700;color:${sc.textColor};text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">${sc.label}</div>
+                    <div style="font-size:12px;color:var(--text3);">Sức chứa: ${t.capacity} người</div>
+                    <div style="margin-top:12px;">
+                        <span style="font-size:11px;background:${sc.color};color:${sc.textColor};padding:4px 12px;border-radius:20px;font-weight:600;">
+                            Nhấn để đổi trạng thái
+                        </span>
+                    </div>
+                </div>
+                <div style="padding:0 12px 12px;display:flex;justify-content:center;">
+                    <button class="btn btn-outline btn-sm" style="width:100%;font-size:11px;"
+                            onclick="event.stopPropagation();showQR(${t.id},'${t.name.replace(/'/g,'\\u0027')}')">📱 QR Code</button>
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="es-icon">❌</div><div class="es-title">${e.message}</div></div>`;
+    }
+}
+
+function openStatusModal(id, name, currentStatus) {
+    document.getElementById('selectedTableId').value = id;
+    document.getElementById('statusModalTitle').textContent = `Cập nhật: ${name}`;
+    selectedStatus = currentStatus;
+    document.querySelectorAll('.status-opt').forEach(opt => {
+        opt.style.border = '2px solid var(--border)';
+        opt.style.background = '';
+    });
+    const opt = document.querySelector(`.status-opt[data-val="${currentStatus}"]`);
+    if (opt) { opt.style.border = '2px solid var(--brown-light)'; opt.style.background = 'var(--cream2)'; }
+    document.getElementById('statusModal').classList.add('active');
+}
+
+async function updateStatus() {
+    const id = document.getElementById('selectedTableId').value;
+    if (!selectedStatus) { showToast('⚠️ Chọn trạng thái!', 'warn'); return; }
+    try {
+        await apiFetch(`/api/tables/${id}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ Status: selectedStatus })
+        });
+        showToast('✅ Cập nhật trạng thái thành công!');
+        closeModal('statusModal');
+        loadTables();
+    } catch(e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+function openAddModal() {
+    document.getElementById('tableName').value = '';
+    document.getElementById('tableCapacity').value = '4';
+    document.getElementById('addTableModal').classList.add('active');
+}
+
+async function saveTable() {
+    const name     = document.getElementById('tableName').value.trim();
+    const capacity = parseInt(document.getElementById('tableCapacity').value) || 4;
+    if (!name) { showToast('⚠️ Nhập tên bàn!', 'warn'); return; }
+    try {
+        await apiFetch('/api/tables', {
+            method: 'POST',
+            body: JSON.stringify({ BranchId: BRANCH_ID, Name: name, Capacity: capacity })
+        });
+        showToast('✅ Thêm bàn thành công!');
+        closeModal('addTableModal');
+        loadTables();
+    } catch(e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// ── QR Code ─────────────────────────────────────────────────────────
+let _currentQRTableName = '';
+let _currentQRTableId   = null;
+
+function showQR(tableId, tableName) {
+    _currentQRTableName = tableName;
+    _currentQRTableId   = tableId;
+    const qrUrl = `${window.location.origin}/PublicMenu?tableId=${tableId}`;
+    document.getElementById('qrTableName').textContent = tableName;
+    document.getElementById('qrUrlLabel').textContent  = qrUrl;
+
+    // Clear previous QR
+    const canvas = document.getElementById('qrCanvas');
+    canvas.innerHTML = '';
+
+    // qrcodejs uses new QRCode(element, options)
+    new QRCode(canvas, {
+        text:         qrUrl,
+        width:        220,
+        height:       220,
+        colorDark:    '#3E1F00',
+        colorLight:   '#FFFFFF',
+        correctLevel: QRCode.CorrectLevel.H
+    });
+
+    document.getElementById('qrModal').classList.add('active');
+}
+
+function downloadQR() {
+    // qrcodejs renders both <img> and <canvas>; grab the image/canvas for download
+    const qrEl = document.querySelector('#qrCanvas img') || document.querySelector('#qrCanvas canvas');
+    if (!qrEl) { showToast('QR chưa sẵn sàng', 'warn'); return; }
+    const a = document.createElement('a');
+    a.href     = qrEl.src || qrEl.toDataURL('image/png');
+    a.download = `qr-ban-${(_currentQRTableName || _currentQRTableId).toString().replace(/\s+/g,'-').toLowerCase()}.png`;
+    a.click();
+    showToast('✅ Tải QR thành công!');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadTables();
+    startCountdown();
+});
+// Pause polling when tab is hidden
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearInterval(_pollTimer);
+    else if (!_pollPaused) startCountdown();
+});
+</script>
+}
