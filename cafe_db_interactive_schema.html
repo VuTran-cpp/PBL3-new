@@ -1,0 +1,530 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.wrap{padding:16px 0}
+.group-label{font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.08em;margin:0 0 6px 2px}
+.groups{display:flex;flex-direction:column;gap:20px}
+.group{border-radius:var(--border-radius-lg);border:1px solid var(--color-border-tertiary);overflow:hidden}
+.group-header{padding:8px 14px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--color-border-tertiary)}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.tables-row{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;background:var(--color-background-secondary)}
+.tbl-btn{border:1px solid var(--color-border-secondary);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:500;cursor:pointer;background:var(--color-background-primary);color:var(--color-text-secondary);transition:all .15s;white-space:nowrap}
+.tbl-btn:hover{color:var(--color-text-primary);border-color:var(--color-border-primary)}
+.tbl-btn.active{color:var(--color-text-primary);border-width:1.5px}
+
+.detail-panel{margin-top:16px;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);overflow:hidden;display:none}
+.detail-panel.show{display:block}
+.detail-header{padding:12px 16px;border-bottom:1px solid var(--color-border-tertiary);display:flex;align-items:center;gap:10px}
+.detail-title{font-size:15px;font-weight:500;color:var(--color-text-primary)}
+.detail-desc{font-size:12px;color:var(--color-text-secondary);margin-top:2px}
+.badge{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500}
+
+.cols-table{width:100%;border-collapse:collapse}
+.cols-table thead tr{background:var(--color-background-tertiary)}
+.cols-table th{font-size:11px;font-weight:500;color:var(--color-text-tertiary);text-align:left;padding:6px 14px;border-bottom:1px solid var(--color-border-tertiary);letter-spacing:.04em}
+.cols-table td{font-size:12px;padding:7px 14px;border-bottom:1px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+.cols-table tr:last-child td{border-bottom:none}
+.cols-table tr:hover td{background:var(--color-background-secondary)}
+.col-name{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-primary);font-weight:500}
+.col-type{font-family:var(--font-mono);font-size:11px;color:var(--color-text-info)}
+.tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:3px;font-weight:500}
+.tag-pk{background:var(--color-background-warning);color:var(--color-text-warning)}
+.tag-fk{background:var(--color-background-info);color:var(--color-text-info)}
+.tag-uq{background:var(--color-background-success);color:var(--color-text-success)}
+.tag-nn{background:var(--color-background-secondary);color:var(--color-text-tertiary)}
+
+.rels{padding:12px 16px;border-top:1px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.rels-title{font-size:11px;font-weight:500;color:var(--color-text-tertiary);margin-bottom:6px;letter-spacing:.04em}
+.rel-item{font-size:12px;color:var(--color-text-secondary);margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.rel-arrow{color:var(--color-text-tertiary);font-size:10px}
+.rel-tbl{font-family:var(--font-mono);font-size:11px;color:var(--color-text-primary);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+</style>
+
+<div class="wrap">
+<div id="groups" class="groups"></div>
+<div id="panel" class="detail-panel">
+  <div class="detail-header">
+    <div id="ph-dot" class="dot"></div>
+    <div>
+      <div id="ph-title" class="detail-title"></div>
+      <div id="ph-desc" class="detail-desc"></div>
+    </div>
+    <span id="ph-badge" class="badge" style="margin-left:auto"></span>
+  </div>
+  <table class="cols-table">
+    <thead><tr><th>Cột</th><th>Kiểu dữ liệu</th><th>Thuộc tính</th><th>Ghi chú</th></tr></thead>
+    <tbody id="ph-cols"></tbody>
+  </table>
+  <div id="ph-rels" class="rels" style="display:none">
+    <div class="rels-title">QUAN HỆ</div>
+    <div id="ph-rels-list"></div>
+  </div>
+</div>
+</div>
+
+<script>
+const GROUPS = [
+  {
+    name:"Hạ tầng & Nhà cung cấp", color:"#1D9E75",
+    tables:["Branch","Supplier"]
+  },
+  {
+    name:"Nhân sự & Bảo mật", color:"#7F77DD",
+    tables:["Employee","Role","Account","Login_Log","Audit_Log"]
+  },
+  {
+    name:"Ca làm việc", color:"#BA7517",
+    tables:["Work_Shift"]
+  },
+  {
+    name:"CRM & Khuyến mãi", color:"#D85A30",
+    tables:["Customer","Promotion","Order_Promotion"]
+  },
+  {
+    name:"Kho nguyên liệu", color:"#378ADD",
+    tables:["Ingredient","Branch_Ingredient","Import_Receipt","Import_Receipt_Item","Inventory_Transaction"]
+  },
+  {
+    name:"Menu", color:"#639922",
+    tables:["Category","Menu_Item","Recipe","Price_History","Option"]
+  },
+  {
+    name:"Đơn hàng", color:"#D4537E",
+    tables:["Table_Cafe","Order_Status","Order","Order_Status_History","Order_Item","Order_Item_Option"]
+  },
+  {
+    name:"Thanh toán & Hậu mãi", color:"#888780",
+    tables:["Payment","Refund","Delivery"]
+  }
+];
+
+const TABLES = {
+  Branch:{
+    desc:"Chi nhánh quán cafe",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"name",t:"VARCHAR(100)",tags:["NN"],note:"Tên chi nhánh"},
+      {n:"address",t:"VARCHAR(255)",tags:["NN"],note:"Địa chỉ"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:"Tự cập nhật"},
+    ],
+    rels:["Employee.branch_id → Branch.id","Table_Cafe.branch_id → Branch.id","Work_Shift.branch_id → Branch.id","Branch_Ingredient.branch_id → Branch.id","Import_Receipt.branch_id → Branch.id","Inventory_Transaction.branch_id → Branch.id","Order.branch_id → Branch.id"]
+  },
+  Supplier:{
+    desc:"Nhà cung cấp nguyên liệu",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"name",t:"VARCHAR(100)",tags:["NN"],note:"Tên nhà cung cấp"},
+      {n:"phone",t:"VARCHAR(20)",tags:["NN"],note:"Số điện thoại"},
+      {n:"address",t:"VARCHAR(255)",tags:[],note:"Địa chỉ (tuỳ chọn)"},
+      {n:"email",t:"VARCHAR(100)",tags:[],note:"Email (tuỳ chọn)"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:["Import_Receipt.supplier_id → Supplier.id"]
+  },
+  Employee:{
+    desc:"Nhân viên, gắn với một chi nhánh cụ thể",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"branch_id",t:"INT",tags:["FK","NN"],note:"→ Branch.id"},
+      {n:"full_name",t:"VARCHAR(100)",tags:["NN"],note:"Họ tên đầy đủ"},
+      {n:"phone",t:"VARCHAR(15)",tags:["UQ","NN"],note:"SĐT duy nhất"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:["Account.employee_id → Employee.id","Work_Shift.employee_id → Employee.id","Import_Receipt.employee_id → Employee.id"]
+  },
+  Role:{
+    desc:"Vai trò hệ thống (ADMIN, STAFF...)",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"name",t:"VARCHAR(50)",tags:["UQ","NN"],note:"Tên vai trò"},
+    ],
+    rels:["Account.role_id → Role.id"]
+  },
+  Account:{
+    desc:"Tài khoản đăng nhập, quan hệ 1-1 với Employee",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"employee_id",t:"INT",tags:["FK","UQ","NN"],note:"→ Employee.id (1-1)"},
+      {n:"role_id",t:"INT",tags:["FK","NN"],note:"→ Role.id"},
+      {n:"username",t:"VARCHAR(50)",tags:["UQ","NN"],note:"Tên đăng nhập"},
+      {n:"password_hash",t:"VARCHAR(255)",tags:["NN"],note:"Mật khẩu đã hash"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:["Login_Log.user_id → Account.id","Audit_Log.user_id → Account.id"]
+  },
+  Login_Log:{
+    desc:"Ghi lại mỗi lần đăng nhập thành công",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"user_id",t:"INT",tags:["FK","NN"],note:"→ Account.id"},
+      {n:"ip_address",t:"VARCHAR(50)",tags:[],note:"IP đăng nhập"},
+      {n:"login_time",t:"TIMESTAMP",tags:[],note:"Thời điểm đăng nhập"},
+    ],
+    rels:[]
+  },
+  Audit_Log:{
+    desc:"Ghi lại mọi hành động thay đổi dữ liệu (CREATE/UPDATE/DELETE)",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"user_id",t:"INT",tags:["FK","NN"],note:"→ Account.id"},
+      {n:"action",t:"VARCHAR(50)",tags:["NN"],note:"CREATE / UPDATE / DELETE"},
+      {n:"entity",t:"VARCHAR(50)",tags:["NN"],note:"Tên bảng bị thay đổi"},
+      {n:"entity_id",t:"BIGINT",tags:[],note:"ID bản ghi bị thay đổi"},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:[]
+  },
+  Work_Shift:{
+    desc:"Ca làm việc của nhân viên thu ngân, dùng để chốt két",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"branch_id",t:"INT",tags:["FK","NN"],note:"→ Branch.id"},
+      {n:"employee_id",t:"INT",tags:["FK","NN"],note:"→ Employee.id"},
+      {n:"start_time",t:"TIMESTAMP",tags:[],note:"Giờ mở ca"},
+      {n:"end_time",t:"TIMESTAMP",tags:[],note:"Giờ đóng ca (null khi đang mở)"},
+      {n:"starting_cash",t:"DECIMAL(12,2)",tags:["NN"],note:"Tiền lẻ đầu ca"},
+      {n:"actual_ending_cash",t:"DECIMAL(12,2)",tags:[],note:"Tiền thực đếm cuối ca"},
+      {n:"difference",t:"DECIMAL(12,2)",tags:[],note:"Chênh lệch thừa/thiếu"},
+      {n:"status",t:"VARCHAR(20)",tags:[],note:"OPEN / CLOSED"},
+    ],
+    rels:["Order.shift_id → Work_Shift.id"]
+  },
+  Customer:{
+    desc:"Khách hàng thành viên, tích điểm và phân hạng",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"full_name",t:"VARCHAR(100)",tags:["NN"],note:"Họ tên"},
+      {n:"phone",t:"VARCHAR(15)",tags:["UQ","NN"],note:"SĐT duy nhất"},
+      {n:"email",t:"VARCHAR(100)",tags:[],note:"Email (tuỳ chọn)"},
+      {n:"birthday",t:"DATE",tags:[],note:"Ngày sinh (tuỳ chọn)"},
+      {n:"points",t:"INT",tags:[],note:"Điểm tích lũy"},
+      {n:"member_tier",t:"VARCHAR(50)",tags:[],note:"BRONZE / SILVER / GOLD"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:["Order.customer_id → Customer.id (nullable = khách vãng lai)"]
+  },
+  Promotion:{
+    desc:"Chương trình khuyến mãi với điều kiện áp dụng",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"name",t:"VARCHAR(100)",tags:["NN"],note:"Tên khuyến mãi"},
+      {n:"discount_type",t:"VARCHAR(20)",tags:["NN"],note:"PERCENTAGE / FIXED"},
+      {n:"value",t:"DECIMAL(12,2)",tags:["NN"],note:"Giá trị giảm"},
+      {n:"min_order_value",t:"DECIMAL(12,2)",tags:[],note:"Đơn tối thiểu"},
+      {n:"max_discount_value",t:"DECIMAL(12,2)",tags:[],note:"Trần giảm giá"},
+      {n:"usage_limit",t:"INT",tags:[],note:"Giới hạn số lần dùng"},
+      {n:"start_date",t:"TIMESTAMP",tags:[],note:"Ngày bắt đầu"},
+      {n:"end_date",t:"TIMESTAMP",tags:[],note:"Ngày kết thúc"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:["Order_Promotion.promotion_id → Promotion.id"]
+  },
+  Order_Promotion:{
+    desc:"Bảng trung gian: một đơn có thể áp nhiều khuyến mãi",
+    cols:[
+      {n:"order_id",t:"BIGINT",tags:["PK","FK"],note:"→ Order.id"},
+      {n:"promotion_id",t:"INT",tags:["PK","FK"],note:"→ Promotion.id"},
+    ],
+    rels:[]
+  },
+  Ingredient:{
+    desc:"Master danh sách nguyên liệu toàn hệ thống (không gắn chi nhánh)",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"name",t:"VARCHAR(100)",tags:["NN"],note:"Tên nguyên liệu"},
+      {n:"unit",t:"VARCHAR(20)",tags:["NN"],note:"Đơn vị: kg, lít, gói..."},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:["Branch_Ingredient.ingredient_id → Ingredient.id","Recipe.ingredient_id → Ingredient.id","Import_Receipt_Item.ingredient_id → Ingredient.id","Inventory_Transaction.ingredient_id → Ingredient.id"]
+  },
+  Branch_Ingredient:{
+    desc:"Tồn kho nguyên liệu theo từng chi nhánh",
+    cols:[
+      {n:"branch_id",t:"INT",tags:["PK","FK"],note:"→ Branch.id"},
+      {n:"ingredient_id",t:"INT",tags:["PK","FK"],note:"→ Ingredient.id"},
+      {n:"current_stock",t:"DECIMAL(12,2)",tags:[],note:"Số lượng tồn hiện tại"},
+      {n:"cost_per_unit",t:"DECIMAL(12,2)",tags:[],note:"Giá nhập tại chi nhánh"},
+    ],
+    rels:[]
+  },
+  Import_Receipt:{
+    desc:"Phiếu nhập hàng từ nhà cung cấp",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"branch_id",t:"INT",tags:["FK","NN"],note:"→ Branch.id"},
+      {n:"supplier_id",t:"INT",tags:["FK","NN"],note:"→ Supplier.id"},
+      {n:"employee_id",t:"INT",tags:["FK"],note:"→ Employee.id (người tạo)"},
+      {n:"total_amount",t:"DECIMAL(12,2)",tags:[],note:"Tổng tiền phiếu nhập"},
+      {n:"status",t:"VARCHAR(20)",tags:[],note:"COMPLETED / PENDING..."},
+      {n:"note",t:"VARCHAR(255)",tags:[],note:"Ghi chú"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:["Import_Receipt_Item.import_receipt_id → Import_Receipt.id","Inventory_Transaction.import_receipt_id → Import_Receipt.id"]
+  },
+  Import_Receipt_Item:{
+    desc:"Chi tiết từng dòng nguyên liệu trong phiếu nhập",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"import_receipt_id",t:"BIGINT",tags:["FK","NN"],note:"→ Import_Receipt.id"},
+      {n:"ingredient_id",t:"INT",tags:["FK","NN"],note:"→ Ingredient.id"},
+      {n:"quantity",t:"DECIMAL(12,2)",tags:["NN"],note:"Số lượng nhập"},
+      {n:"unit_price",t:"DECIMAL(12,2)",tags:["NN"],note:"Đơn giá"},
+      {n:"total_price",t:"DECIMAL(12,2)",tags:["NN"],note:"= quantity × unit_price"},
+    ],
+    rels:[]
+  },
+  Inventory_Transaction:{
+    desc:"Lịch sử mọi biến động kho (nhập / xuất / điều chỉnh)",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"branch_id",t:"INT",tags:["FK","NN"],note:"→ Branch.id"},
+      {n:"ingredient_id",t:"INT",tags:["FK","NN"],note:"→ Ingredient.id"},
+      {n:"import_receipt_id",t:"BIGINT",tags:["FK"],note:"→ Import_Receipt.id (nullable)"},
+      {n:"type",t:"VARCHAR(20)",tags:["NN"],note:"IMPORT / EXPORT / ADJUST"},
+      {n:"quantity",t:"DECIMAL(12,2)",tags:["NN"],note:"Số lượng biến động"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:[]
+  },
+  Category:{
+    desc:"Danh mục món: Cà phê, Trà sữa, Nước ép...",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"name",t:"VARCHAR(100)",tags:["UQ","NN"],note:"Tên danh mục"},
+    ],
+    rels:["Menu_Item.category_id → Category.id"]
+  },
+  Menu_Item:{
+    desc:"Món trong menu, có ảnh và lịch sử giá",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"category_id",t:"INT",tags:["FK","NN"],note:"→ Category.id"},
+      {n:"name",t:"VARCHAR(100)",tags:["NN"],note:"Tên món"},
+      {n:"price",t:"DECIMAL(12,2)",tags:["NN"],note:"Giá hiện tại"},
+      {n:"image_url",t:"VARCHAR(255)",tags:[],note:"Đường dẫn ảnh"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:["Recipe.menu_item_id → Menu_Item.id","Price_History.menu_item_id → Menu_Item.id","Order_Item.menu_item_id → Menu_Item.id"]
+  },
+  Recipe:{
+    desc:"Công thức pha chế — nguyên liệu cần để làm 1 phần món",
+    cols:[
+      {n:"menu_item_id",t:"INT",tags:["PK","FK"],note:"→ Menu_Item.id"},
+      {n:"ingredient_id",t:"INT",tags:["PK","FK"],note:"→ Ingredient.id"},
+      {n:"quantity_required",t:"DECIMAL(12,2)",tags:["NN"],note:"Lượng nguyên liệu cần"},
+    ],
+    rels:[]
+  },
+  Price_History:{
+    desc:"Lịch sử thay đổi giá của từng món",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"menu_item_id",t:"INT",tags:["FK","NN"],note:"→ Menu_Item.id"},
+      {n:"price",t:"DECIMAL(12,2)",tags:["NN"],note:"Giá tại thời điểm đó"},
+      {n:"start_date",t:"TIMESTAMP",tags:["NN"],note:"Giá có hiệu lực từ"},
+      {n:"end_date",t:"TIMESTAMP",tags:[],note:"Giá hết hiệu lực (null = đang dùng)"},
+    ],
+    rels:[]
+  },
+  Option:{
+    desc:"Tùy chọn cố định cho món: Ít đá, Ít đường...",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"name",t:"VARCHAR(50)",tags:["NN"],note:"Tên tùy chọn"},
+    ],
+    rels:["Order_Item_Option.option_id → Option.id"]
+  },
+  Table_Cafe:{
+    desc:"Bàn của quán, gắn với chi nhánh cụ thể",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"branch_id",t:"INT",tags:["FK","NN"],note:"→ Branch.id"},
+      {n:"name",t:"VARCHAR(50)",tags:["NN"],note:"Tên/số bàn"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:["Order.table_id → Table_Cafe.id"]
+  },
+  Order_Status:{
+    desc:"Lookup trạng thái đơn (seed sẵn khi khởi tạo DB)",
+    cols:[
+      {n:"id",t:"INT",tags:["PK"],note:"Tự tăng"},
+      {n:"name",t:"VARCHAR(50)",tags:["UQ","NN"],note:"PENDING/COOKING/SERVED/COMPLETED/CANCELLED"},
+    ],
+    rels:["Order.order_status_id → Order_Status.id","Order_Status_History.status_id → Order_Status.id"]
+  },
+  Order:{
+    desc:"Đơn hàng — bảng trung tâm của toàn hệ thống",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"branch_id",t:"INT",tags:["FK","NN"],note:"→ Branch.id"},
+      {n:"shift_id",t:"BIGINT",tags:["FK"],note:"→ Work_Shift.id (nullable)"},
+      {n:"customer_id",t:"INT",tags:["FK"],note:"→ Customer.id (nullable = vãng lai)"},
+      {n:"order_status_id",t:"INT",tags:["FK","NN"],note:"→ Order_Status.id"},
+      {n:"table_id",t:"INT",tags:["FK"],note:"→ Table_Cafe.id (nullable)"},
+      {n:"order_type",t:"VARCHAR(20)",tags:["NN"],note:"DINE_IN / TAKE_AWAY / DELIVERY"},
+      {n:"sub_total",t:"DECIMAL(12,2)",tags:[],note:"Tổng trước KM"},
+      {n:"final_amount",t:"DECIMAL(12,2)",tags:[],note:"Tổng sau KM"},
+      {n:"cost_amount",t:"DECIMAL(12,2)",tags:[],note:"Giá vốn (tính lãi)"},
+      {n:"is_deleted",t:"BOOLEAN",tags:[],note:"Soft delete"},
+      {n:"deleted_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:["Order_Item.order_id → Order.id","Order_Status_History.order_id → Order.id","Order_Promotion.order_id → Order.id","Payment.order_id → Order.id","Refund.order_id → Order.id","Delivery.order_id → Order.id"]
+  },
+  Order_Status_History:{
+    desc:"Ghi lại mỗi lần chuyển trạng thái của đơn hàng",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"order_id",t:"BIGINT",tags:["FK","NN"],note:"→ Order.id"},
+      {n:"status_id",t:"INT",tags:["FK","NN"],note:"→ Order_Status.id"},
+      {n:"changed_at",t:"TIMESTAMP",tags:[],note:"Thời điểm chuyển trạng thái"},
+    ],
+    rels:[]
+  },
+  Order_Item:{
+    desc:"Từng món trong đơn, chụp giá tại thời điểm đặt",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"order_id",t:"BIGINT",tags:["FK","NN"],note:"→ Order.id"},
+      {n:"menu_item_id",t:"INT",tags:["FK","NN"],note:"→ Menu_Item.id"},
+      {n:"quantity",t:"INT",tags:["NN"],note:"Số lượng"},
+      {n:"unit_price",t:"DECIMAL(12,2)",tags:["NN"],note:"Giá tại thời điểm đặt"},
+      {n:"note",t:"VARCHAR(255)",tags:[],note:"Ghi tay tự do"},
+    ],
+    rels:["Order_Item_Option.order_item_id → Order_Item.id"]
+  },
+  Order_Item_Option:{
+    desc:"Tùy chọn chuẩn hóa cho từng món trong đơn",
+    cols:[
+      {n:"order_item_id",t:"BIGINT",tags:["PK","FK"],note:"→ Order_Item.id"},
+      {n:"option_id",t:"INT",tags:["PK","FK"],note:"→ Option.id"},
+    ],
+    rels:[]
+  },
+  Payment:{
+    desc:"Giao dịch thanh toán — một đơn có thể thanh toán nhiều lần",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"order_id",t:"BIGINT",tags:["FK","NN"],note:"→ Order.id"},
+      {n:"amount",t:"DECIMAL(12,2)",tags:["NN"],note:"Số tiền giao dịch"},
+      {n:"method",t:"VARCHAR(20)",tags:["NN"],note:"CASH / BANK / CARD"},
+      {n:"status",t:"VARCHAR(20)",tags:[],note:"SUCCESS / FAILED..."},
+      {n:"paid_at",t:"TIMESTAMP",tags:[],note:"Thời điểm thanh toán"},
+    ],
+    rels:[]
+  },
+  Refund:{
+    desc:"Hoàn tiền cho đơn hàng",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"order_id",t:"BIGINT",tags:["FK","NN"],note:"→ Order.id"},
+      {n:"amount",t:"DECIMAL(12,2)",tags:["NN"],note:"Số tiền hoàn"},
+      {n:"reason",t:"VARCHAR(255)",tags:["NN"],note:"Lý do hoàn tiền"},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:[]
+  },
+  Delivery:{
+    desc:"Thông tin giao hàng cho đơn DELIVERY",
+    cols:[
+      {n:"id",t:"BIGINT",tags:["PK"],note:"Tự tăng"},
+      {n:"order_id",t:"BIGINT",tags:["FK","NN"],note:"→ Order.id"},
+      {n:"address",t:"VARCHAR(255)",tags:["NN"],note:"Địa chỉ giao"},
+      {n:"phone",t:"VARCHAR(15)",tags:["NN"],note:"SĐT người nhận"},
+      {n:"shipper_name",t:"VARCHAR(100)",tags:[],note:"Tên shipper"},
+      {n:"estimated_time",t:"TIMESTAMP",tags:[],note:"Dự kiến giao"},
+      {n:"status",t:"VARCHAR(20)",tags:[],note:"PREPARING/DELIVERING/DELIVERED"},
+      {n:"created_at",t:"TIMESTAMP",tags:[],note:""},
+      {n:"updated_at",t:"TIMESTAMP",tags:[],note:""},
+    ],
+    rels:[]
+  }
+};
+
+const TAG_CLASS = {PK:'tag-pk',FK:'tag-fk',UQ:'tag-uq',NN:'tag-nn'};
+let activeBtn = null;
+
+function renderGroups(){
+  const container = document.getElementById('groups');
+  GROUPS.forEach(g=>{
+    const div = document.createElement('div');
+    div.className='group';
+    div.innerHTML=`<div class="group-header"><div class="dot" style="background:${g.color}"></div><span>${g.name}</span><span style="margin-left:auto;font-size:11px;color:var(--color-text-tertiary)">${g.tables.length} bảng</span></div><div class="tables-row">${g.tables.map(t=>`<button class="tbl-btn" data-tbl="${t}" onclick="showTable('${t}',this)">${t}</button>`).join('')}</div>`;
+    container.appendChild(div);
+  });
+}
+
+function showTable(name, btn){
+  if(activeBtn){ activeBtn.classList.remove('active'); activeBtn.style.borderColor=''; activeBtn.style.color=''; }
+  const g = GROUPS.find(g=>g.tables.includes(name));
+  btn.classList.add('active');
+  btn.style.borderColor = g.color;
+  btn.style.color = g.color;
+  activeBtn = btn;
+
+  const data = TABLES[name];
+  document.getElementById('ph-dot').style.background = g.color;
+  document.getElementById('ph-title').textContent = name;
+  document.getElementById('ph-desc').textContent = data.desc;
+  const badge = document.getElementById('ph-badge');
+  badge.textContent = data.cols.length + ' cột';
+  badge.style.background = g.color + '20';
+  badge.style.color = g.color;
+
+  const tbody = document.getElementById('ph-cols');
+  tbody.innerHTML = data.cols.map(c=>`<tr><td class="col-name">${c.n}</td><td class="col-type">${c.t}</td><td>${c.tags.map(t=>`<span class="tag ${TAG_CLASS[t]}">${t}</span>`).join('')}</td><td style="color:var(--color-text-tertiary);font-size:11px">${c.note}</td></tr>`).join('');
+
+  const relsDiv = document.getElementById('ph-rels');
+  const relsList = document.getElementById('ph-rels-list');
+  if(data.rels && data.rels.length>0){
+    relsList.innerHTML = data.rels.map(r=>{
+      const tbl = r.split('→')[1]?.trim().split('.')[0];
+      return `<div class="rel-item"><span class="rel-arrow">↗</span><span>${r.split('→')[0].trim()}</span><span class="rel-arrow">→</span><span class="rel-tbl" onclick="const b=document.querySelector('[data-tbl=${tbl}]');if(b)showTable('${tbl}',b)">${r.split('→')[1]?.trim()}</span></div>`;
+    }).join('');
+    relsDiv.style.display='block';
+  } else {
+    relsDiv.style.display='none';
+  }
+
+  const panel = document.getElementById('panel');
+  panel.classList.add('show');
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+renderGroups();
+</script>
