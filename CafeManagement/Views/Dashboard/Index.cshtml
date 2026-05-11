@@ -1,0 +1,395 @@
+@{
+    Layout = "_Layout";
+    ViewBag.ActivePage = "Dashboard";
+    ViewBag.PageTitle = "Dashboard — Báo cáo hôm nay";
+    ViewBag.Title = "Dashboard";
+}
+
+<!-- Stats Grid -->
+<div class="page-header">
+    <div>
+        <div class="page-title">📊 Dashboard</div>
+        <div class="page-subtitle">Tổng quan hoạt động kinh doanh</div>
+    </div>
+    <div class="flex gap-8" style="align-items:center;">
+        <select id="daysFilter" class="form-control" style="width:150px;" onchange="loadAll()">
+            <option value="7">7 ngày qua</option>
+            <option value="30">30 ngày qua</option>
+            <option value="90">90 ngày qua</option>
+        </select>
+        <div style="position:relative;">
+            <button class="btn btn-outline" onclick="toggleExportMenu()" id="exportBtn"
+                    style="display:flex;align-items:center;gap:6px;">
+                📅 Xuất báo cáo
+                <span style="font-size:10px;">&#9660;</span>
+            </button>
+            <div id="exportMenu" style="display:none;position:absolute;right:0;top:100%;margin-top:6px;
+                 background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+                 box-shadow:var(--shadow-lg);z-index:500;min-width:180px;overflow:hidden;">
+                <button onclick="exportCSV()" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;
+                    background:none;border:none;cursor:pointer;font-size:13px;color:var(--text);text-align:left;
+                    transition:background .15s;" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='none'">
+                    📄 Xuất CSV
+                </button>
+                <button onclick="printDashboard()" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;
+                    background:none;border:none;cursor:pointer;font-size:13px;color:var(--text);text-align:left;
+                    border-top:1px solid var(--border);transition:background .15s;"
+                    onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='none'">
+                    🖨️ In báo cáo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="stat-icon brown skeleton" style="height:48px;width:48px;border-radius:12px;"></div><div><div class="skeleton" style="height:24px;width:100px;border-radius:6px;margin-bottom:6px;"></div><div class="skeleton" style="height:14px;width:80px;border-radius:4px;"></div></div></div>
+    <div class="stat-card"><div class="stat-icon brown skeleton" style="height:48px;width:48px;border-radius:12px;"></div><div><div class="skeleton" style="height:24px;width:100px;border-radius:6px;margin-bottom:6px;"></div><div class="skeleton" style="height:14px;width:80px;border-radius:4px;"></div></div></div>
+    <div class="stat-card"><div class="stat-icon brown skeleton" style="height:48px;width:48px;border-radius:12px;"></div><div><div class="skeleton" style="height:24px;width:100px;border-radius:6px;margin-bottom:6px;"></div><div class="skeleton" style="height:14px;width:80px;border-radius:4px;"></div></div></div>
+    <div class="stat-card"><div class="stat-icon brown skeleton" style="height:48px;width:48px;border-radius:12px;"></div><div><div class="skeleton" style="height:24px;width:100px;border-radius:6px;margin-bottom:6px;"></div><div class="skeleton" style="height:14px;width:80px;border-radius:4px;"></div></div></div>
+</div>
+
+<!-- Charts + Tables -->
+<div style="display:grid; grid-template-columns:1fr 360px; gap:20px; margin-top:20px;">
+    <!-- Revenue Chart -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">📈 Doanh thu theo ngày</div>
+            <div style="font-size:12px;color:var(--text3);" id="chartRefreshLabel"></div>
+        </div>
+        <div class="card-body">
+            <canvas id="revenueChart" style="max-height:280px;"></canvas>
+        </div>
+    </div>
+
+    <!-- Top Items -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">🏆 Top món bán chạy</div>
+        </div>
+        <div class="card-body" style="padding:0;">
+            <div id="topItemsList" style="padding:8px 0;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Donut chart + recent orders row -->
+<div style="display:grid; grid-template-columns:280px 1fr; gap:20px; margin-top:20px;">
+    <div class="card">
+        <div class="card-header"><div class="card-title">🥧 Loại đơn hàng</div></div>
+        <div class="card-body" style="display:flex;align-items:center;justify-content:center;">
+            <canvas id="orderTypeChart" style="max-height:200px;max-width:200px;"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">🕐 Đơn hàng gần đây</div>
+            <a href="/Orders" class="btn btn-outline btn-sm">Xem tất cả</a>
+        </div>
+        <div id="recentOrders" style="overflow-x:auto; max-height:240px; overflow-y:auto;"></div>
+    </div>
+</div>
+
+<!-- Low Stock Alert -->
+<div style="margin-top:20px;">
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">⚠️ Nguyên liệu sắp hết</div>
+            <button class="btn btn-outline btn-sm" onclick="loadLowStock()">🔄 Làm mới</button>
+        </div>
+        <div id="lowStockList" class="card-body" style="padding:0; max-height:240px; overflow-y:auto;"></div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let revenueChart = null;
+let orderTypeChart = null;
+let autoRefreshTimer = null;
+
+async function loadAll() {
+    const days = parseInt(document.getElementById('daysFilter').value);
+    await Promise.all([
+        loadStats(),
+        loadRevenueChart(days),
+        loadTopItems(days),
+        loadLowStock(),
+        loadRecentOrders()
+    ]);
+    // Auto-refresh every 60s
+    clearTimeout(autoRefreshTimer);
+    autoRefreshTimer = setTimeout(loadAll, 60000);
+    const lbl = document.getElementById('chartRefreshLabel');
+    if (lbl) lbl.textContent = 'Cập nhật lúc ' + new Date().toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'});
+}
+
+async function loadStats() {
+    try {
+        const d = await apiFetch(`/api/dashboard/today/${BRANCH_ID}`);
+        const avg = d.totalOrders > 0 ? d.totalRevenue / d.totalOrders : 0;
+        document.getElementById('statsGrid').innerHTML = `
+            <div class="stat-card">
+                <div class="stat-icon brown">☕</div>
+                <div>
+                    <div class="stat-value">${d.totalOrders}</div>
+                    <div class="stat-label">Đơn hàng hôm nay</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon green">💰</div>
+                <div>
+                    <div class="stat-value">${formatVND(d.totalRevenue)}</div>
+                    <div class="stat-label">Doanh thu hôm nay</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon blue">📈</div>
+                <div>
+                    <div class="stat-value">${formatVND(d.totalProfit)}</div>
+                    <div class="stat-label">Lợi nhuận hôm nay</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon amber">🧾</div>
+                <div>
+                    <div class="stat-value">${formatVND(avg)}</div>
+                    <div class="stat-label">TB / đơn hàng</div>
+                </div>
+            </div>
+        `;
+
+        // Order type donut
+        loadOrderTypeChart(d.totalOrders - d.cancelledOrders, d.cancelledOrders);
+    } catch(e) { console.error('loadStats', e); }
+}
+
+function loadOrderTypeChart(completed, cancelled) {
+    try {
+        const ctx = document.getElementById('orderTypeChart')?.getContext('2d');
+        if (!ctx) return;
+        if (orderTypeChart) orderTypeChart.destroy();
+        orderTypeChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Hoàn thành', 'Đã hủy'],
+                datasets: [{ data: [completed, cancelled],
+                    backgroundColor: ['#27AE60','#E74C3C'],
+                    borderWidth: 0, hoverOffset: 8 }]
+            },
+            options: {
+                responsive: true, cutout: '72%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 12 } }
+                }
+            }
+        });
+    } catch(e) { console.error('orderTypeChart', e); }
+}
+
+async function loadRevenueChart(days) {
+    try {
+        const data = await apiFetch(`/api/dashboard/revenue-chart/${BRANCH_ID}?days=${days}`);
+        const labels   = data.map(d => { const dt = new Date(d.date); return `${dt.getDate()}/${dt.getMonth()+1}`; });
+        const revenues = data.map(d => d.revenue);
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        const grad = ctx.createLinearGradient(0, 0, 0, 280);
+        grad.addColorStop(0, 'rgba(107,58,31,.35)');
+        grad.addColorStop(1, 'rgba(107,58,31,.02)');
+        if (revenueChart) revenueChart.destroy();
+        revenueChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Doanh thu',
+                    data: revenues,
+                    borderColor: '#6B3A1F',
+                    backgroundColor: grad,
+                    borderWidth: 2.5,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#6B3A1F',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { ticks: { callback: v => (v/1e6).toFixed(1)+'tr' }, grid: { color: 'rgba(0,0,0,.05)' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    } catch(e) { console.error('loadRevenueChart', e); }
+}
+
+async function loadTopItems(days) {
+    try {
+        const items = await apiFetch(`/api/dashboard/top-items/${BRANCH_ID}?days=${days}&top=8`);
+        const el = document.getElementById('topItemsList');
+        if (!items || items.length === 0) {
+            el.innerHTML = '<div class="empty-state"><div>Chưa có dữ liệu</div></div>';
+            return;
+        }
+        const max = items[0].totalQuantity;
+        const medals = ['🥇','🥈','🥉'];
+        el.innerHTML = items.map((item, i) => `
+            <div style="padding:10px 16px; border-bottom:1px solid var(--border);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+                    <span style="font-size:16px;min-width:22px;">${medals[i] || `<span style='font-weight:800;color:var(--text3);font-size:12px;'>#${i+1}</span>`}</span>
+                    <span style="flex:1;font-size:13px;font-weight:600;">${item.itemName}</span>
+                    <span style="font-size:11px;color:var(--text3);font-weight:600;">${item.totalQuantity} ly</span>
+                    <span style="font-size:11px;color:var(--green);font-weight:700;">${formatVND(item.totalRevenue)}</span>
+                </div>
+                <div style="background:var(--surface2);border-radius:20px;height:4px;">
+                    <div style="width:${(item.totalQuantity/max*100).toFixed(0)}%;background:linear-gradient(90deg,var(--brown-mid),var(--brown-light));height:4px;border-radius:20px;transition:width .6s;"></div>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) { console.error('loadTopItems', e); }
+}
+
+async function loadLowStock() {
+    try {
+        const items = await apiFetch(`/api/inventory/low-stock/${BRANCH_ID}`);
+        const el = document.getElementById('lowStockList');
+        if (!items || items.length === 0) {
+            el.innerHTML = '<div class="empty-state" style="padding:30px;"><div class="es-icon">✅</div><div class="es-title">Tồn kho đầy đủ</div></div>';
+            return;
+        }
+        el.innerHTML = `<table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:var(--surface2);">
+                <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:var(--text3);">Nguyên liệu</th>
+                <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:var(--text3);">Tồn kho</th>
+                <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:var(--text3);">Ngưỡng</th>
+            </tr></thead>
+            <tbody>${items.map(i => `
+                <tr style="border-top:1px solid var(--border);">
+                    <td style="padding:10px 16px;font-size:13px;">${i.ingredientName}</td>
+                    <td style="padding:10px 16px;text-align:right;font-weight:700;color:var(--red);">${i.currentStock} ${i.unit}</td>
+                    <td style="padding:10px 16px;text-align:right;font-size:12px;color:var(--text3);">${i.minStockThreshold} ${i.unit}</td>
+                </tr>
+            `).join('')}</tbody>
+        </table>`;
+    } catch(e) { console.error('loadLowStock', e); }
+}
+
+async function loadRecentOrders() {
+    try {
+        const data = await apiFetch(`/api/orders?branchId=${BRANCH_ID}&pageSize=8`);
+        const el = document.getElementById('recentOrders');
+        if (!data?.items?.length) {
+            el.innerHTML = '<div class="empty-state" style="padding:30px;"><div>Chưa có đơn hàng</div></div>';
+            return;
+        }
+        const statusBadge = s => {
+            const map = { PENDING:'badge-amber', COOKING:'badge-blue', SERVED:'badge-purple', COMPLETED:'badge-green', CANCELLED:'badge-red' };
+            const label = { PENDING:'Chờ', COOKING:'Đang làm', SERVED:'Đã phục vụ', COMPLETED:'Hoàn thành', CANCELLED:'Đã hủy' };
+            return `<span class="badge ${map[s]||'badge-gray'}">${label[s]||s}</span>`;
+        };
+        el.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+            <thead><tr style="background:var(--surface2);">
+                <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:var(--text3);">#</th>
+                <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:var(--text3);">Bàn</th>
+                <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:var(--text3);">Trạng thái</th>
+                <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:var(--text3);">Tổng tiền</th>
+            </tr></thead>
+            <tbody>${data.items.map(o => `
+                <tr style="border-top:1px solid var(--border);">
+                    <td style="padding:10px 16px;font-weight:700;font-size:12px;color:var(--text3);">#${o.id}</td>
+                    <td style="padding:10px 16px;font-size:13px;">${o.tableName||'Take Away'}</td>
+                    <td style="padding:10px 16px;">${statusBadge(o.orderStatus)}</td>
+                    <td style="padding:10px 16px;text-align:right;font-weight:700;color:var(--red);">${formatVND(o.finalAmount)}</td>
+                </tr>
+            `).join('')}</tbody>
+        </table>`;
+    } catch(e) { console.error('loadRecentOrders', e); }
+}
+
+// ── Export CSV ─────────────────────────────────────────────────────────
+let _cachedRevenueData = [];
+let _cachedTopItems    = [];
+
+function toggleExportMenu() {
+    const m = document.getElementById('exportMenu');
+    m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', e => {
+    if (!e.target.closest('#exportBtn') && !e.target.closest('#exportMenu'))
+        document.getElementById('exportMenu').style.display = 'none';
+});
+
+async function exportCSV() {
+    document.getElementById('exportMenu').style.display = 'none';
+    showToast('⏳ Đang xuất dữ liệu...', 'info');
+    const days = parseInt(document.getElementById('daysFilter').value);
+    try {
+        const [revenue, items, statsData] = await Promise.all([
+            apiFetch(`/api/dashboard/revenue-chart/${BRANCH_ID}?days=${days}`),
+            apiFetch(`/api/dashboard/top-items/${BRANCH_ID}?days=${days}&top=20`),
+            apiFetch(`/api/dashboard/today/${BRANCH_ID}`)
+        ]);
+
+        // Sheet 1: Revenue
+        const revRows = [
+            ['Ngày', 'Doanh thu (VNĐ)'],
+            ...revenue.map(r => [
+                new Date(r.date).toLocaleDateString('vi-VN'),
+                r.revenue
+            ])
+        ];
+
+        // Sheet 2: Top Items
+        const itemRows = [
+            ['Hạng', 'Tên món', 'Số lượng', 'Doanh thu (VNĐ)'],
+            ...(items||[]).map(i => [i.rank, i.itemName, i.totalQuantity, i.totalRevenue])
+        ];
+
+        // Sheet 3: Summary
+        const sumRows = [
+            ['Chỉ số', 'Giá trị'],
+            ['Tổng đơn hàng hôm nay', statsData.totalOrders],
+            ['Doanh thu hôm nay', statsData.totalRevenue],
+            ['Lợi nhuận hôm nay', statsData.totalProfit],
+            ['Đơn hủy', statsData.cancelledOrders],
+            ['TB/đơn', statsData.avgOrderValue]
+        ];
+
+        const csvContent =
+            '=== Tóm tắt hôm nay ===\n' + toCSV(sumRows) +
+            '\n=== Doanh thu ' + days + ' ngày ===\n' + toCSV(revRows) +
+            '\n=== Top món bán chạy ===\n' + toCSV(itemRows);
+
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `bao-cao-abc-coffee-${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('✅ Xuất CSV thành công!');
+    } catch(e) {
+        showToast('❌ Xuất thất bại: ' + e.message, 'error');
+    }
+}
+
+function toCSV(rows) {
+    return rows.map(r => r.map(c => {
+        const str = String(c ?? '');
+        return str.includes(',') || str.includes('"') || str.includes('\n')
+            ? `"${str.replace(/"/g,'""')}"`
+            : str;
+    }).join(',')).join('\n');
+}
+
+function printDashboard() {
+    document.getElementById('exportMenu').style.display = 'none';
+    window.print();
+}
+
+document.addEventListener('DOMContentLoaded', loadAll);
+</script>
+}

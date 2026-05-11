@@ -1,0 +1,248 @@
+@{
+    Layout = "_Layout";
+    ViewBag.ActivePage = "Shifts";
+    ViewBag.PageTitle = "Ca làm việc";
+    ViewBag.Title = "Ca làm việc";
+}
+
+<div class="page-header">
+    <div>
+        <div class="page-title">🕐 Ca làm việc</div>
+        <div class="page-subtitle">Quản lý ca mở/đóng tại chi nhánh</div>
+    </div>
+</div>
+
+<!-- Current Shift Status -->
+<div id="shiftStatusCard" class="card" style="margin-bottom:20px;">
+    <div class="card-body">
+        <div style="text-align:center;padding:20px;color:var(--text3);">⏳ Đang kiểm tra trạng thái ca...</div>
+    </div>
+</div>
+
+<!-- Open Shift Modal -->
+<div class="modal-overlay" id="openShiftModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">🟢 Mở ca làm việc</div>
+            <button class="modal-close" onclick="closeModal('openShiftModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Tiền đầu ca (đ) <span style="color:var(--red)">*</span></label>
+                <input type="number" id="startingCash" class="form-control" placeholder="VD: 500000" min="0" value="0">
+                <div style="font-size:12px;color:var(--text3);margin-top:4px;">Số tiền mặt trong két khi bắt đầu ca</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('openShiftModal')">Hủy</button>
+            <button class="btn btn-success" onclick="openShift()">✅ Mở ca</button>
+        </div>
+    </div>
+</div>
+
+<!-- Close Shift Modal -->
+<div class="modal-overlay" id="closeShiftModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">🔴 Đóng ca làm việc</div>
+            <button class="modal-close" onclick="closeModal('closeShiftModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div id="shiftSummary" style="background:var(--surface2);border-radius:var(--r);padding:16px;margin-bottom:16px;font-size:14px;"></div>
+            <div class="form-group">
+                <label class="form-label">Tiền mặt thực tế trong két (đ) <span style="color:var(--red)">*</span></label>
+                <input type="number" id="actualCash" class="form-control" placeholder="Đếm và nhập số tiền thực tế" min="0">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Ghi chú</label>
+                <textarea id="closeNote" class="form-control" rows="2" placeholder="Ghi chú khi đóng ca..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('closeShiftModal')">Hủy</button>
+            <button class="btn btn-danger" onclick="closeShift()">🔴 Xác nhận đóng ca</button>
+        </div>
+    </div>
+</div>
+
+<!-- Shift History -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <div class="card-title">📜 Lịch sử ca làm việc</div>
+        <button class="btn btn-outline btn-sm" onclick="loadShiftHistory()">🔄 Làm mới</button>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#Ca</th>
+                    <th>Bắt đầu</th>
+                    <th>Kết thúc</th>
+                    <th>Tiền đầu ca</th>
+                    <th>Tiền kết ca</th>
+                    <th>Chênh lệch</th>
+                    <th style="text-align:center;">Trạng thái</th>
+                </tr>
+            </thead>
+            <tbody id="shiftHistoryBody">
+                <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text3);">⏳ Đang tải...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+let currentShift = null;
+
+async function loadShift() {
+    const card = document.getElementById('shiftStatusCard');
+    try {
+        currentShift = await apiFetch(`/api/shifts/current/${BRANCH_ID}`);
+        renderOpenShift(currentShift);
+    } catch {
+        currentShift = null;
+        card.innerHTML = `
+            <div class="card-body" style="text-align:center;padding:48px 20px;">
+                <div style="font-size:64px;margin-bottom:16px;">😴</div>
+                <div style="font-size:20px;font-weight:700;color:var(--brown-dark);margin-bottom:8px;">Chưa có ca nào đang mở</div>
+                <div style="color:var(--text3);margin-bottom:24px;">Nhấn nút bên dưới để bắt đầu ca làm việc mới</div>
+                <button class="btn btn-success btn-lg" onclick="showOpenShift()">🟢 Mở ca làm việc</button>
+            </div>`;
+    }
+}
+
+function renderOpenShift(s) {
+    const card = document.getElementById('shiftStatusCard');
+    const startTime = new Date(s.startTime);
+    const elapsed = Math.floor((Date.now() - startTime.getTime()) / 60000);
+    const hours = Math.floor(elapsed / 60);
+    const mins  = elapsed % 60;
+
+    card.innerHTML = `
+        <div style="background:linear-gradient(135deg,#27AE60,#1E8449);padding:30px;border-radius:var(--r-lg);color:#fff;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+                <div>
+                    <div style="font-size:13px;opacity:.75;margin-bottom:4px;">Ca đang mở — Chi nhánh #${s.branchId}</div>
+                    <div style="font-size:28px;font-weight:800;">Ca #${s.id}</div>
+                    <div style="font-size:13px;opacity:.85;margin-top:6px;">Bắt đầu: ${formatDateTime(s.startTime)}</div>
+                    <div style="font-size:13px;opacity:.85;">Thời gian: ${hours > 0 ? hours + ' giờ ' : ''}${mins} phút</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:13px;opacity:.75;">Tiền đầu ca</div>
+                    <div style="font-size:24px;font-weight:800;">${formatVND(s.startingCash)}</div>
+                    <button class="btn" style="margin-top:16px;background:rgba(255,255,255,.2);color:#fff;border:1.5px solid rgba(255,255,255,.4);"
+                            onclick="showCloseShift()">🔴 Đóng ca</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function showOpenShift() {
+    document.getElementById('startingCash').value = '0';
+    document.getElementById('openShiftModal').classList.add('active');
+}
+
+async function openShift() {
+    const cash = parseFloat(document.getElementById('startingCash').value) || 0;
+    try {
+        await apiFetch('/api/shifts/open', {
+            method: 'POST',
+            body: JSON.stringify({
+                BranchId: BRANCH_ID,
+                EmployeeId: EMPLOYEE_ID || 1,
+                StartingCash: cash
+            })
+        });
+        showToast('✅ Mở ca thành công!');
+        closeModal('openShiftModal');
+        loadShift();
+    } catch(e) {
+        showToast('❌ ' + e.message, 'error');
+    }
+}
+
+async function showCloseShift() {
+    if (!currentShift) return;
+    // Load revenue for current shift
+    try {
+        const orders = await apiFetch(`/api/orders?branchId=${BRANCH_ID}&pageSize=200`);
+        const shiftOrders = (orders?.items || []).filter(o => o.orderStatus === 'COMPLETED');
+        const revenue = shiftOrders.reduce((s, o) => s + o.finalAmount, 0);
+        const expected = (currentShift.startingCash || 0) + revenue;
+
+        document.getElementById('shiftSummary').innerHTML = `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div><div style="font-size:11px;color:var(--text3);font-weight:600;">Tiền đầu ca</div><div style="font-weight:700;font-size:16px;">${formatVND(currentShift.startingCash)}</div></div>
+                <div><div style="font-size:11px;color:var(--text3);font-weight:600;">Doanh thu ca</div><div style="font-weight:700;font-size:16px;color:var(--green);">${formatVND(revenue)}</div></div>
+                <div><div style="font-size:11px;color:var(--text3);font-weight:600;">Dự kiến trong két</div><div style="font-weight:700;font-size:16px;">${formatVND(expected)}</div></div>
+                <div><div style="font-size:11px;color:var(--text3);font-weight:600;">Số đơn hoàn thành</div><div style="font-weight:700;font-size:16px;">${shiftOrders.length}</div></div>
+            </div>
+        `;
+        document.getElementById('actualCash').value = expected.toFixed(0);
+    } catch {
+        document.getElementById('shiftSummary').innerHTML = '<div style="color:var(--text3);">Không tải được tổng kết ca</div>';
+    }
+    document.getElementById('closeShiftModal').classList.add('active');
+}
+
+async function closeShift() {
+    if (!currentShift) return;
+    const actual = parseFloat(document.getElementById('actualCash').value);
+    if (isNaN(actual)) { showToast('⚠️ Nhập tiền thực tế trong két!', 'warn'); return; }
+    const note = document.getElementById('closeNote').value;
+    try {
+        await apiFetch(`/api/shifts/${currentShift.id}/close`, {
+            method: 'POST',
+            body: JSON.stringify({ ActualEndingCash: actual, Note: note })
+        });
+        showToast('✅ Đóng ca thành công!');
+        closeModal('closeShiftModal');
+        window.CURRENT_SHIFT_ID = null;
+        document.getElementById('shift-status-badge').style.display = 'none';
+        loadShift();
+        loadShiftHistory();
+    } catch(e) {
+        showToast('❌ ' + e.message, 'error');
+    }
+}
+
+async function loadShiftHistory() {
+    const tbody = document.getElementById('shiftHistoryBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;"><div class="skeleton" style="height:14px;width:300px;margin:auto;border-radius:6px;"></div></td></tr>';
+    try {
+        const data = await apiFetch(`/api/shifts/history/${BRANCH_ID}?pageSize=20`);
+        if (!data || !data.length) {
+            tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="es-icon">📋</div><div class="es-title">Chưa có lịch sử ca</div></div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(s => {
+            const diff = s.difference ?? 0;
+            const diffColor = diff >= 0 ? 'var(--green)' : 'var(--red)';
+            const diffSign  = diff >= 0 ? '+' : '';
+            return `<tr>
+                <td style="font-weight:700;color:var(--brown-dark);">#${s.id}</td>
+                <td style="font-size:13px;">${formatDateTime(s.startTime)}</td>
+                <td style="font-size:13px;color:var(--text3);">${s.endTime ? formatDateTime(s.endTime) : '—'}</td>
+                <td style="text-align:right;font-weight:600;">${formatVND(s.startingCash)}</td>
+                <td style="text-align:right;font-weight:600;">${s.actualEndingCash != null ? formatVND(s.actualEndingCash) : '—'}</td>
+                <td style="text-align:right;font-weight:700;color:${diffColor};">${s.difference != null ? diffSign + formatVND(diff) : '—'}</td>
+                <td style="text-align:center;">
+                    <span class="badge ${s.status === 'OPEN' ? 'badge-green' : 'badge-gray'}">
+                        ${s.status === 'OPEN' ? '🟢 Đang mở' : '⭕ Đã đóng'}
+                    </span>
+                </td>
+            </tr>`;
+        }).join('');
+    } catch(e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">❌ ${e.message}</td></tr>`;
+    }
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+document.addEventListener('DOMContentLoaded', () => { loadShift(); loadShiftHistory(); });
+</script>
+}

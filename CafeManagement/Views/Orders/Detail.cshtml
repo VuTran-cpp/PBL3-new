@@ -1,0 +1,312 @@
+@{
+    Layout = "_Layout";
+    var orderId = ViewBag.OrderId;
+}
+
+<div class="page-header">
+    <div style="display:flex;align-items:center;gap:12px;">
+        <a href="/Orders" class="btn btn-outline btn-sm">← Quay lại</a>
+        <div>
+            <div class="page-title">📄 Chi Tiết Đơn Hàng #<span id="hOrderId">@orderId</span></div>
+            <div class="page-subtitle">Thông tin đầy đủ và lịch sử xử lý</div>
+        </div>
+    </div>
+    <div style="display:flex;gap:8px;" id="actionBtns">
+        <button class="btn btn-outline" onclick="printReceipt()">🖨️ In Bill</button>
+    </div>
+</div>
+
+<!-- Loading skeleton -->
+<div id="loadingState" style="display:grid;grid-template-columns:1fr 360px;gap:20px;">
+    <div class="card skeleton" style="height:300px;"></div>
+    <div class="card skeleton" style="height:300px;"></div>
+</div>
+
+<!-- Main content (hidden while loading) -->
+<div id="mainContent" style="display:none;grid-template-columns:1fr 360px;gap:20px;" class="detail-grid">
+
+    <!-- Left: Order info + items -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+        <!-- Order meta -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📋 Thông tin đơn hàng</div>
+                <span id="statusBadge" class="badge"></span>
+            </div>
+            <div class="card-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div><div style="font-size:12px;color:var(--text3);">Mã đơn</div><div id="dOrderId" style="font-weight:700;font-size:18px;color:var(--brown-dark);">—</div></div>
+                    <div><div style="font-size:12px;color:var(--text3);">Loại đơn</div><div id="dOrderType" style="font-weight:600;">—</div></div>
+                    <div><div style="font-size:12px;color:var(--text3);">Bàn</div><div id="dTable" style="font-weight:600;">—</div></div>
+                    <div><div style="font-size:12px;color:var(--text3);">Khách hàng</div><div id="dCustomer" style="font-weight:600;">—</div></div>
+                    <div><div style="font-size:12px;color:var(--text3);">Thời gian tạo</div><div id="dCreatedAt" style="font-weight:600;">—</div></div>
+                    <div><div style="font-size:12px;color:var(--text3);">Chi nhánh</div><div id="dBranch" style="font-weight:600;">—</div></div>
+                </div>
+                <div id="dNote" style="margin-top:14px;padding:10px 14px;background:var(--surface2);border-radius:var(--r);font-size:13px;color:var(--text2);display:none;">
+                    📝 <span id="dNoteText"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order items -->
+        <div class="card">
+            <div class="card-header"><div class="card-title">🍽️ Danh sách món</div></div>
+            <div class="card-body" style="padding:0;">
+                <table class="table" id="itemsTable">
+                    <thead>
+                        <tr>
+                            <th>Món</th>
+                            <th style="text-align:center;">SL</th>
+                            <th style="text-align:right;">Đơn giá</th>
+                            <th style="text-align:right;">Thành tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Promotions -->
+        <div class="card" id="promoCard" style="display:none;">
+            <div class="card-header"><div class="card-title">🎁 Khuyến mãi áp dụng</div></div>
+            <div class="card-body" style="padding:0;">
+                <table class="table"><tbody id="promoBody"></tbody></table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Summary + actions -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+        <!-- Financial summary -->
+        <div class="card">
+            <div class="card-header"><div class="card-title">💰 Tổng kết thanh toán</div></div>
+            <div class="card-body">
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <div style="display:flex;justify-content:space-between;font-size:14px;">
+                        <span style="color:var(--text2);">Tạm tính</span>
+                        <strong id="dSubTotal">—</strong>
+                    </div>
+                    <div id="dDiscountRow" style="display:none;justify-content:space-between;font-size:14px;">
+                        <span style="color:var(--green);">Giảm giá</span>
+                        <strong id="dDiscount" style="color:var(--green);">—</strong>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:800;color:var(--red);border-top:2px dashed var(--border);padding-top:12px;margin-top:4px;">
+                        <span>TỔNG CỘNG</span>
+                        <span id="dFinal">—</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card">
+            <div class="card-header"><div class="card-title">⚡ Thao tác</div></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+                <button class="btn btn-outline" style="width:100%;" onclick="printReceipt()">🖨️ In lại hóa đơn</button>
+                <div id="refundSection" style="display:none;">
+                    <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
+                    <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:8px;">MANAGER / ADMIN</div>
+                    <button class="btn btn-outline" style="width:100%;color:var(--red);border-color:var(--red);" onclick="openRefundModal()">💸 Hoàn tiền</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error state -->
+<div id="errorState" style="display:none;text-align:center;padding:60px;">
+    <div style="font-size:48px;margin-bottom:16px;">❌</div>
+    <div style="font-size:18px;font-weight:700;" id="errorMsg">Không tìm thấy đơn hàng</div>
+    <a href="/Orders" class="btn btn-outline" style="margin-top:16px;">← Quay lại danh sách</a>
+</div>
+
+<!-- Refund Modal -->
+<div class="modal-overlay" id="refundModal">
+    <div class="modal" style="max-width:420px;">
+        <div class="modal-header">
+            <div class="modal-title">💸 Hoàn tiền đơn #<span id="rmOrderId"></span></div>
+            <button class="modal-close" onclick="closeRefundModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Số tiền hoàn <span style="color:var(--red)">*</span></label>
+                <input type="number" id="rmAmount" class="form-control" placeholder="Nhập số tiền hoàn trả" min="1">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Lý do hoàn tiền <span style="color:var(--red)">*</span></label>
+                <textarea id="rmReason" class="form-control" rows="3" placeholder="Mô tả lý do hoàn tiền..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeRefundModal()">Hủy</button>
+            <button class="btn" style="background:var(--red);color:#fff;" onclick="processRefund()">💸 Xác nhận hoàn tiền</button>
+        </div>
+    </div>
+</div>
+
+<!-- Receipt print area -->
+<div id="receiptPrint" style="display:none;">
+    <div style="font-family:monospace;width:300px;margin:0 auto;padding:20px;">
+        <div style="text-align:center;border-bottom:2px dashed #000;padding-bottom:12px;margin-bottom:12px;">
+            <div style="font-size:18px;font-weight:900;">ABC COFFEE</div>
+            <div style="font-size:11px;">Đ/c: 123 Nguyễn Văn Linh</div>
+            <div style="font-weight:700;margin-top:4px;">HÓA ĐƠN THANH TOÁN</div>
+        </div>
+        <div id="rpInfo" style="font-size:12px;margin-bottom:12px;"></div>
+        <div id="rpItems"></div>
+        <div id="rpTotal" style="border-top:2px dashed #000;padding-top:10px;font-weight:900;font-size:16px;display:flex;justify-content:space-between;"></div>
+        <div style="text-align:center;font-size:12px;margin-top:14px;">Cảm ơn quý khách! ☕</div>
+    </div>
+</div>
+
+@section Styles {
+<style>
+    .detail-grid { display: grid; }
+    @@media print {
+        .sidebar, .topbar, #actionBtns, .card-header button, #refundSection { display: none !important; }
+        .main { margin: 0 !important; padding: 0 !important; }
+        #receiptPrint { display: block !important; }
+        #mainContent, #loadingState { display: none !important; }
+    }
+</style>
+}
+
+@section Scripts {
+<script>
+const ORDER_ID = @orderId;
+let _order = null;
+
+// ── Load order detail ──────────────────────────────────────────
+async function loadOrder() {
+    try {
+        _order = await apiFetch(`/api/orders/${ORDER_ID}`);
+        renderOrder(_order);
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'grid';
+    } catch(e) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'block';
+        document.getElementById('errorMsg').textContent = e.message;
+    }
+}
+
+function renderOrder(o) {
+    // Meta
+    document.getElementById('dOrderId').textContent   = '#' + o.id;
+    document.getElementById('hOrderId').textContent   = o.id;
+    document.getElementById('dOrderType').textContent = o.orderType === 'DINE_IN' ? '🪑 Tại bàn' : '🥡 Mang về';
+    document.getElementById('dTable').textContent     = o.tableName || 'Take Away';
+    document.getElementById('dCustomer').textContent  = o.customerName || 'Khách lẻ';
+    document.getElementById('dCreatedAt').textContent = formatDateTime(o.createdAt);
+    document.getElementById('dBranch').textContent    = o.branchName;
+
+    if (o.note) {
+        document.getElementById('dNote').style.display = '';
+        document.getElementById('dNoteText').textContent = o.note;
+    }
+
+    // Status badge
+    const statusColors = {
+        PENDING: 'var(--amber)', COOKING: 'var(--blue)',
+        SERVED: 'var(--green)', COMPLETED: 'var(--green)',
+        CANCELLED: 'var(--red)'
+    };
+    const badge = document.getElementById('statusBadge');
+    badge.textContent = o.orderStatus;
+    badge.style.cssText = `background:${statusColors[o.orderStatus]||'var(--text3)'}20;color:${statusColors[o.orderStatus]||'var(--text3)'};border:1px solid ${statusColors[o.orderStatus]||'var(--border)'};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;`;
+
+    // Financial
+    document.getElementById('dSubTotal').textContent = formatVND(o.subTotal);
+    document.getElementById('dFinal').textContent    = formatVND(o.finalAmount);
+    if (o.discountAmount > 0) {
+        document.getElementById('dDiscountRow').style.display = 'flex';
+        document.getElementById('dDiscount').textContent = '-' + formatVND(o.discountAmount);
+    }
+
+    // Items table
+    const tbody = document.getElementById('itemsBody');
+    tbody.innerHTML = o.items.map(i => `
+        <tr>
+            <td>
+                <div style="font-weight:600;">${i.itemName}</div>
+                ${i.note ? `<div style="font-size:11px;color:var(--text3);font-style:italic;">↳ ${i.note}</div>` : ''}
+                ${i.options?.length ? `<div style="font-size:11px;color:var(--blue);">+ ${i.options.join(', ')}</div>` : ''}
+            </td>
+            <td style="text-align:center;font-weight:700;">${i.quantity}</td>
+            <td style="text-align:right;">${formatVND(i.unitPrice)}</td>
+            <td style="text-align:right;font-weight:700;color:var(--brown-dark);">${formatVND(i.totalPrice)}</td>
+        </tr>
+    `).join('');
+
+    // Promotions
+    if (o.promotions?.length) {
+        document.getElementById('promoCard').style.display = '';
+        document.getElementById('promoBody').innerHTML = o.promotions.map(p => `
+            <tr>
+                <td>🎁 ${p.promotionName}</td>
+                <td style="text-align:right;color:var(--green);font-weight:700;">-${formatVND(p.discountValue)}</td>
+            </tr>
+        `).join('');
+    }
+
+    // Show refund button for MANAGER/ADMIN and COMPLETED orders
+    if (isManagerOrAdmin() && o.orderStatus === 'COMPLETED') {
+        document.getElementById('refundSection').style.display = '';
+        document.getElementById('rmOrderId').textContent = o.id;
+    }
+}
+
+// ── Print receipt ──────────────────────────────────────────────
+function printReceipt() {
+    if (!_order) return;
+    document.getElementById('rpInfo').innerHTML = `
+        <div>Bàn: <strong>${_order.tableName || 'Take Away'}</strong></div>
+        <div>Order #: <strong>${_order.id}</strong></div>
+        <div>Khách: <strong>${_order.customerName || 'Khách lẻ'}</strong></div>
+        <div>Ngày: <strong>${formatDateTime(_order.createdAt)}</strong></div>
+    `;
+    document.getElementById('rpItems').innerHTML =
+        '<div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:8px 0;margin-bottom:8px;">' +
+        _order.items.map(i => `
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;">
+                <span>${i.quantity}x ${i.itemName}</span>
+                <span>${(i.totalPrice).toLocaleString('vi-VN')}</span>
+            </div>
+        `).join('') + '</div>';
+    document.getElementById('rpTotal').innerHTML = `<span>TỔNG:</span><span>${_order.finalAmount.toLocaleString('vi-VN')}đ</span>`;
+    window.print();
+}
+
+// ── Refund ─────────────────────────────────────────────────────
+function openRefundModal() {
+    document.getElementById('rmAmount').value = _order?.finalAmount || '';
+    document.getElementById('rmReason').value = '';
+    document.getElementById('refundModal').classList.add('active');
+}
+function closeRefundModal() {
+    document.getElementById('refundModal').classList.remove('active');
+}
+async function processRefund() {
+    const amount = parseFloat(document.getElementById('rmAmount').value);
+    const reason = document.getElementById('rmReason').value.trim();
+    if (!amount || amount <= 0) { showToast('⚠️ Nhập số tiền hợp lệ!', 'warn'); return; }
+    if (!reason) { showToast('⚠️ Nhập lý do hoàn tiền!', 'warn'); return; }
+    if (!confirm(`Xác nhận hoàn ${formatVND(amount)} cho đơn #${_order.id}?`)) return;
+
+    try {
+        await apiFetch('/api/payments/refunds', {
+            method: 'POST',
+            body: JSON.stringify({ OrderId: _order.id, Amount: amount, Reason: reason })
+        });
+        showToast('✅ Hoàn tiền thành công!', 'success');
+        closeRefundModal();
+    } catch(e) {
+        showToast('❌ ' + e.message, 'error');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadOrder);
+</script>
+}

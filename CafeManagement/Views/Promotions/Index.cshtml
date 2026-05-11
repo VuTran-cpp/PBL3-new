@@ -1,0 +1,301 @@
+@{
+    Layout = "_Layout";
+    ViewBag.ActivePage = "Promotions";
+    ViewBag.PageTitle = "Quản lý Khuyến mãi";
+    ViewBag.Title = "Khuyến mãi";
+}
+
+<div class="page-header">
+    <div>
+        <div class="page-title">🎁 Quản lý Khuyến mãi</div>
+        <div class="page-subtitle">Tạo và quản lý mã giảm giá</div>
+    </div>
+    <button class="btn btn-primary" id="btnAddPromo" onclick="openAddModal()" style="display:none;">＋ Tạo khuyến mãi</button>
+</div>
+
+<!-- Filter -->
+<div class="filters-bar" style="margin-bottom:16px;">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
+        <input type="checkbox" id="activeOnly" onchange="loadPromotions()" style="width:16px;height:16px;">
+        Chỉ hiện khuyến mãi đang hoạt động
+    </label>
+</div>
+
+<!-- Cards Grid -->
+<div id="promoGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+    @for (int i = 0; i < 4; i++) {
+        <div class="card skeleton" style="height:180px;"></div>
+    }
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="addPromoModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">＋ Tạo / Sửa khuyến mãi</div>
+            <button class="modal-close" onclick="closeModal('addPromoModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Tên chương trình <span style="color:var(--red)">*</span></label>
+                <input type="text" id="promoName" class="form-control" placeholder="VD: Sinh nhật tháng 4">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Mã code (tùy chọn)</label>
+                <input type="text" id="promoCode" class="form-control" placeholder="VD: BIRTHDAY20" style="text-transform:uppercase;">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Loại giảm giá <span style="color:var(--red)">*</span></label>
+                <select id="promoType" class="form-control" onchange="togglePromoType()">
+                    <option value="PERCENTAGE">% Phần trăm</option>
+                    <option value="FIXED">Số tiền cố định</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" id="promoValueLabel">Giá trị (%) <span style="color:var(--red)">*</span></label>
+                <input type="number" id="promoValue" class="form-control" placeholder="VD: 20" min="0">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                    <label class="form-label">Đơn hàng tối thiểu</label>
+                    <input type="number" id="promoMin" class="form-control" placeholder="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Giảm tối đa (đ)</label>
+                    <input type="number" id="promoMax" class="form-control" placeholder="Không giới hạn" min="0">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Giới hạn sử dụng</label>
+                <input type="number" id="promoLimit" class="form-control" placeholder="Để trống = không giới hạn" min="1">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                    <label class="form-label">Ngày bắt đầu</label>
+                    <input type="datetime-local" id="promoStart" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Ngày kết thúc</label>
+                    <input type="datetime-local" id="promoEnd" class="form-control">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('addPromoModal')">Hủy</button>
+            <button class="btn btn-primary" onclick="savePromo()">💾 Lưu khuyến mãi</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+// ── Safe cache tránh JSON-in-onclick escaping issues ──
+let _promoCache = {};
+
+function togglePromoType() {
+    const t = document.getElementById('promoType').value;
+    document.getElementById('promoValueLabel').textContent =
+        (t === 'PERCENTAGE' ? 'Giá trị (%)' : 'Số tiền giảm (đ)') + ' *';
+}
+
+// ── Load & render ──────────────────────────────────────────
+async function loadPromotions() {
+    const activeOnly = document.getElementById('activeOnly').checked;
+    const grid = document.getElementById('promoGrid');
+
+    // Hiện skeleton trong lúc load
+    grid.innerHTML = Array(4).fill('')
+        .map(() => '<div class="card skeleton" style="height:180px;"></div>').join('');
+
+    // Hiện nút "Tạo khuyến mãi" nếu là quản lý
+    if (isManagerOrAdmin()) document.getElementById('btnAddPromo').style.display = '';
+
+    try {
+        const promos = await apiFetch('/api/promotions' + (activeOnly ? '?activeOnly=true' : ''));
+
+        // Build cache để editPromoById() dùng
+        _promoCache = {};
+        promos.forEach(p => { _promoCache[p.id] = p; });
+
+        if (!promos.length) {
+            grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">' +
+                '<div class="es-icon">🎁</div>' +
+                '<div class="es-title">Chưa có khuyến mãi nào</div>' +
+                '<div class="es-text">Nhấn "+ Tạo khuyến mãi" để bắt đầu</div>' +
+                '</div>';
+            return;
+        }
+        renderPromos(promos);
+    } catch (e) {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">' +
+            '<div class="es-icon">❌</div>' +
+            '<div class="es-title">' + e.message + '</div>' +
+            '</div>';
+    }
+}
+
+function renderPromos(promos) {
+    const now  = new Date();
+    const grid = document.getElementById('promoGrid');
+    const isMgr = isManagerOrAdmin();
+
+    grid.innerHTML = promos.map(p => {
+        const isActive = (!p.startDate || new Date(p.startDate) <= now)
+                      && (!p.endDate   || new Date(p.endDate)   >= now)
+                      && (!p.usageLimit || p.usedCount < p.usageLimit);
+
+        const discountText = p.discountType === 'PERCENTAGE'
+            ? p.value + '%' : formatVND(p.value);
+
+        const usageText = p.usageLimit
+            ? p.usedCount + '/' + p.usageLimit + ' lượt'
+            : p.usedCount + ' lượt';
+
+        const borderColor = isActive ? 'var(--green)' : 'var(--border2)';
+        const badgeClass  = isActive ? 'badge-green' : 'badge-gray';
+        const badgeText   = isActive ? '✅ Hoạt động' : '⏸ Dừng';
+
+        const codeHtml = p.code
+            ? '<div style="margin-top:4px;"><span style="background:var(--surface2);border:1.5px dashed var(--border2);' +
+              'padding:3px 12px;border-radius:6px;font-family:monospace;font-weight:700;font-size:14px;letter-spacing:1px;">' +
+              p.code + '</span></div>'
+            : '';
+
+        const progressHtml = p.usageLimit
+            ? '<div style="margin-top:10px;"><div style="background:var(--surface2);border-radius:20px;height:6px;">' +
+              '<div style="width:' + Math.min(100, (p.usedCount / p.usageLimit * 100)).toFixed(0) + '%;' +
+              'background:' + (isActive ? 'var(--green)' : 'var(--text3)') + ';height:6px;border-radius:20px;transition:width .5s;"></div>' +
+              '</div></div>'
+            : '';
+
+        const minText  = p.minOrderValue    ? '<span>Đơn tối thiểu: '  + formatVND(p.minOrderValue)    + '</span>' : '';
+        const maxText  = p.maxDiscountValue ? '<span>Giảm tối đa: '     + formatVND(p.maxDiscountValue) + '</span>' : '';
+        const fromText = p.startDate        ? '<span>Từ: '              + formatDate(p.startDate)       + '</span>' : '';
+        const toText   = p.endDate          ? '<span>Đến: '             + formatDate(p.endDate)         + '</span>' : '';
+
+        const mgrBtns = isMgr
+            ? '<div style="display:flex;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">' +
+              '<button class="btn btn-outline btn-sm" style="flex:1" onclick="editPromoById(' + p.id + ')">✏️ Sửa</button>' +
+              '<button class="btn btn-sm ' + (isActive ? 'btn-warning' : 'btn-success') + '" style="flex:1"' +
+              ' onclick="togglePromo(' + p.id + ',' + !isActive + ')">' + (isActive ? '⏸ Dừng' : '▶ Kích hoạt') + '</button>' +
+              '<button class="btn btn-danger btn-sm" onclick="deletePromo(' + p.id + ',\'' + p.name.replace(/'/g, "\\'") + '\')">🗑</button>' +
+              '</div>'
+            : '';
+
+        return '<div class="card" style="border-left:4px solid ' + borderColor + '">' +
+            '<div style="padding:20px;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">' +
+                    '<div>' +
+                        '<div style="font-weight:700;font-size:15px;color:var(--brown-dark);">' + p.name + '</div>' +
+                        codeHtml +
+                    '</div>' +
+                    '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
+                '</div>' +
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">' +
+                    '<div><div style="color:var(--text3);font-size:11px;font-weight:600;margin-bottom:2px;">GIẢM GIÁ</div>' +
+                        '<div style="font-weight:800;font-size:20px;color:var(--red);">' + discountText + '</div></div>' +
+                    '<div><div style="color:var(--text3);font-size:11px;font-weight:600;margin-bottom:2px;">ĐÃ DÙNG</div>' +
+                        '<div style="font-weight:700;">' + usageText + '</div></div>' +
+                '</div>' +
+                '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);display:flex;gap:16px;flex-wrap:wrap;">' +
+                    minText + maxText + fromText + toText +
+                '</div>' +
+                progressHtml +
+                mgrBtns +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+// ── Edit ───────────────────────────────────────────────────
+function editPromoById(id) {
+    const p = _promoCache[id];
+    if (!p) { showToast('❌ Không tìm thấy dữ liệu', 'error'); return; }
+    editPromo(p);
+}
+
+function editPromo(p) {
+    document.getElementById('addPromoModal').dataset.editId = p.id;
+    document.getElementById('promoName').value   = p.name;
+    document.getElementById('promoCode').value   = p.code || '';
+    document.getElementById('promoType').value   = p.discountType;
+    document.getElementById('promoValue').value  = p.value;
+    document.getElementById('promoMin').value    = p.minOrderValue || '';
+    document.getElementById('promoMax').value    = p.maxDiscountValue || '';
+    document.getElementById('promoLimit').value  = p.usageLimit || '';
+    document.getElementById('promoStart').value  = p.startDate ? p.startDate.substring(0, 16) : '';
+    document.getElementById('promoEnd').value    = p.endDate   ? p.endDate.substring(0, 16)   : '';
+    togglePromoType();
+    document.getElementById('addPromoModal').classList.add('active');
+}
+
+// ── Add Modal ─────────────────────────────────────────────
+function openAddModal() {
+    document.getElementById('addPromoModal').dataset.editId = '';
+    ['promoName','promoCode','promoValue','promoMin','promoMax','promoLimit','promoStart','promoEnd']
+        .forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('promoType').value = 'PERCENTAGE';
+    togglePromoType();
+    document.getElementById('addPromoModal').classList.add('active');
+}
+
+// ── Save ──────────────────────────────────────────────────
+async function savePromo() {
+    const name   = document.getElementById('promoName').value.trim();
+    const code   = document.getElementById('promoCode').value.trim().toUpperCase() || null;
+    const type   = document.getElementById('promoType').value;
+    const val    = parseFloat(document.getElementById('promoValue').value);
+    if (!name || isNaN(val)) { showToast('⚠️ Nhập tên và giá trị!', 'warn'); return; }
+
+    const editId = document.getElementById('addPromoModal').dataset.editId;
+    const body = {
+        Name:             name,
+        Code:             code,
+        DiscountType:     type,
+        Value:            val,
+        MinOrderValue:    parseFloat(document.getElementById('promoMin').value)   || null,
+        MaxDiscountValue: parseFloat(document.getElementById('promoMax').value)   || null,
+        UsageLimit:       parseInt(document.getElementById('promoLimit').value)   || null,
+        StartDate:        document.getElementById('promoStart').value             || null,
+        EndDate:          document.getElementById('promoEnd').value               || null
+    };
+
+    try {
+        if (editId) {
+            await apiFetch('/api/promotions/' + editId, { method: 'PUT', body: JSON.stringify(body) });
+            showToast('✅ Cập nhật khuyến mãi thành công!');
+        } else {
+            await apiFetch('/api/promotions', { method: 'POST', body: JSON.stringify(body) });
+            showToast('✅ Tạo khuyến mãi thành công!');
+        }
+        closeModal('addPromoModal');
+        loadPromotions();
+    } catch (e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+// ── Toggle / Delete ───────────────────────────────────────
+async function togglePromo(id, activate) {
+    try {
+        await apiFetch('/api/promotions/' + id, {
+            method: 'PUT',
+            body: JSON.stringify({ IsActive: activate })
+        });
+        showToast('✅ ' + (activate ? 'Kích hoạt' : 'Dừng') + ' khuyến mãi thành công!');
+        loadPromotions();
+    } catch (e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+async function deletePromo(id, name) {
+    if (!confirmDialog('Xóa khuyến mãi "' + name + '"?')) return;
+    try {
+        await apiFetch('/api/promotions/' + id, { method: 'DELETE' });
+        showToast('✅ Đã xóa "' + name + '"');
+        loadPromotions();
+    } catch (e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+document.addEventListener('DOMContentLoaded', loadPromotions);
+</script>
+}
