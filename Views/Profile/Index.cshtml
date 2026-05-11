@@ -1,0 +1,356 @@
+@{
+    Layout = "_Layout";
+    ViewBag.ActivePage = "Profile";
+    ViewBag.PageTitle = "Hồ sơ cá nhân";
+    ViewBag.Title = "Profile";
+}
+
+<div class="page-header">
+    <div>
+        <div class="page-title">👤 Hồ sơ cá nhân</div>
+        <div class="page-subtitle">Thông tin tài khoản và cài đặt hệ thống</div>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start;">
+
+    <!-- ── Left: Avatar + Info Card ── -->
+    <div>
+        <div class="card">
+            <div style="padding:32px 20px;text-align:center;border-bottom:1px solid var(--border);">
+                <div id="profileAvatar"
+                     style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,var(--brown-mid),var(--brown-dark));
+                            color:#fff;font-size:32px;font-weight:800;display:flex;align-items:center;justify-content:center;
+                            margin:0 auto 16px;box-shadow:0 6px 24px rgba(107,58,31,.3);">
+                    —
+                </div>
+                <div id="profileName" style="font-size:18px;font-weight:700;color:var(--brown-dark);">Đang tải...</div>
+                <div id="profileRole" style="margin-top:4px;"></div>
+            </div>
+            <div style="padding:16px 20px;font-size:13px;" id="profileInfo">
+                <div style="text-align:center;color:var(--text3);padding:10px;">⏳ Đang tải...</div>
+            </div>
+        </div>
+
+        <!-- Appearance settings -->
+        <div class="card" style="margin-top:16px;">
+            <div class="card-header"><div class="card-title">🎨 Giao diện</div></div>
+            <div style="padding:16px 20px;display:flex;flex-direction:column;gap:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <div style="font-size:13px;font-weight:600;">Chế độ tối</div>
+                        <div style="font-size:12px;color:var(--text3);">Giảm mỏi mắt ban đêm</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="darkModeToggle" onchange="applyDarkMode(this.checked)">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <div style="font-size:13px;font-weight:600;">Thông báo</div>
+                        <div style="font-size:12px;color:var(--text3);">Cảnh báo tồn kho & đơn hàng</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="notifToggle" checked onchange="saveNotifPref(this.checked)">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Right: Tabs ── -->
+    <div>
+        <!-- Tab Navigation -->
+        <div style="display:flex;gap:4px;margin-bottom:16px;background:var(--surface);border-radius:var(--r);padding:4px;border:1px solid var(--border);">
+            <button class="tab-btn active" id="tab-info" onclick="switchTab('info')">📋 Thông tin</button>
+            <button class="tab-btn" id="tab-password" onclick="switchTab('password')">🔑 Đổi mật khẩu</button>
+            <button class="tab-btn" id="tab-activity" onclick="switchTab('activity')">📊 Hoạt động</button>
+        </div>
+
+        <!-- Tab: Info -->
+        <div id="panel-info" class="card">
+            <div class="card-header"><div class="card-title">📋 Thông tin tài khoản</div></div>
+            <div class="card-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div class="form-group">
+                        <label class="form-label">Họ và tên</label>
+                        <div id="infoFullName" class="form-control" style="background:var(--surface2);cursor:default;">—</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tên đăng nhập</label>
+                        <div id="infoUsername" class="form-control" style="background:var(--surface2);cursor:default;">—</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Vai trò</label>
+                        <div id="infoRoleDisplay" class="form-control" style="background:var(--surface2);cursor:default;">—</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Chi nhánh</label>
+                        <div id="infoBranch" class="form-control" style="background:var(--surface2);cursor:default;">—</div>
+                    </div>
+                </div>
+
+                <div style="margin-top:16px;padding:16px;background:var(--surface2);border-radius:var(--r);border-left:4px solid var(--amber);">
+                    <div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:4px;">ℹ️ LƯU Ý</div>
+                    <div style="font-size:13px;color:var(--text2);">Thông tin tài khoản do Admin quản lý. Để thay đổi, liên hệ người quản lý chi nhánh.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Change Password -->
+        <div id="panel-password" class="card" style="display:none;">
+            <div class="card-header"><div class="card-title">🔑 Đổi mật khẩu</div></div>
+            <div class="card-body" style="max-width:480px;">
+                <div class="form-group">
+                    <label class="form-label">Mật khẩu hiện tại <span style="color:var(--red)">*</span></label>
+                    <div style="position:relative;">
+                        <input type="password" id="oldPwd" class="form-control" placeholder="Nhập mật khẩu hiện tại">
+                        <button onclick="togglePwd('oldPwd',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);">👁</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Mật khẩu mới <span style="color:var(--red)">*</span></label>
+                    <div style="position:relative;">
+                        <input type="password" id="newPwd" class="form-control" placeholder="Tối thiểu 6 ký tự" oninput="checkStrength(this.value)">
+                        <button onclick="togglePwd('newPwd',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);">👁</button>
+                    </div>
+                    <!-- Password strength bar -->
+                    <div style="margin-top:8px;">
+                        <div style="background:var(--surface2);border-radius:20px;height:5px;overflow:hidden;">
+                            <div id="strengthBar" style="height:5px;border-radius:20px;width:0%;transition:width .3s,background .3s;"></div>
+                        </div>
+                        <div id="strengthLabel" style="font-size:11px;color:var(--text3);margin-top:4px;"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Xác nhận mật khẩu mới <span style="color:var(--red)">*</span></label>
+                    <div style="position:relative;">
+                        <input type="password" id="confirmPwd" class="form-control" placeholder="Nhập lại mật khẩu mới">
+                        <button onclick="togglePwd('confirmPwd',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);">👁</button>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="changePassword()" style="width:100%;">🔑 Cập nhật mật khẩu</button>
+            </div>
+        </div>
+
+        <!-- Tab: Activity -->
+        <div id="panel-activity" class="card" style="display:none;">
+            <div class="card-header">
+                <div class="card-title">📊 Hoạt động của tôi hôm nay</div>
+                <button class="btn btn-outline btn-sm" onclick="loadActivity()">🔄 Làm mới</button>
+            </div>
+            <div id="activityContent" class="card-body">
+                <div style="text-align:center;padding:40px;color:var(--text3);">⏳ Đang tải...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Styles {
+<style>
+/* Toggle switch */
+.toggle-switch { position:relative;display:inline-flex;width:44px;height:24px;flex-shrink:0; }
+.toggle-switch input { opacity:0;width:0;height:0; }
+.toggle-slider {
+    position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
+    background:var(--border2);border-radius:24px;transition:.3s;
+}
+.toggle-slider:before {
+    position:absolute;content:"";width:18px;height:18px;left:3px;bottom:3px;
+    background:#fff;border-radius:50%;transition:.3s;box-shadow:0 2px 6px rgba(0,0,0,.2);
+}
+input:checked + .toggle-slider { background:var(--brown-mid); }
+input:checked + .toggle-slider:before { transform:translateX(20px); }
+
+/* Tab buttons */
+.tab-btn {
+    flex:1;padding:9px 12px;border:none;background:transparent;
+    border-radius:calc(var(--r) - 2px);font-size:13px;font-weight:600;
+    color:var(--text3);cursor:pointer;transition:all .2s;
+}
+.tab-btn.active { background:var(--brown-mid);color:#fff;box-shadow:0 2px 8px rgba(107,58,31,.25); }
+.tab-btn:not(.active):hover { background:var(--surface2);color:var(--text); }
+</style>
+}
+
+@section Scripts {
+<script>
+// ── Profile Data ────────────────────────────────────────────────────────
+async function loadProfile() {
+    // Data comes from session (injected by Layout)
+    const name  = window.FULL_NAME  || 'Unknown';
+    const role  = window.USER_ROLE  || 'STAFF';
+    const empId = window.EMPLOYEE_ID || 0;
+    const brId  = window.BRANCH_ID  || 1;
+
+    // Avatar initials
+    const initials = name.split(' ').map(w => w[0]).slice(-2).join('').toUpperCase() || '??';
+    document.getElementById('profileAvatar').textContent = initials;
+    document.getElementById('profileName').textContent   = name;
+
+    const roleColors = { ADMIN:'var(--red)', MANAGER:'var(--amber)', STAFF:'var(--blue)' };
+    document.getElementById('profileRole').innerHTML =
+        `<span class="badge" style="background:${roleColors[role]||'var(--text3)'}20;color:${roleColors[role]||'var(--text3)'};border:1px solid ${roleColors[role]||'var(--border)'};">
+            ${role}
+         </span>`;
+
+    // Left card info list
+    document.getElementById('profileInfo').innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span style="color:var(--text3);">🆔 Mã NV</span>
+                <strong>#${empId}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span style="color:var(--text3);">🏪 Chi nhánh</span>
+                <strong>#${brId}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span style="color:var(--text3);">📅 Ngày đăng nhập</span>
+                <strong>${new Date().toLocaleDateString('vi-VN')}</strong>
+            </div>
+        </div>
+    `;
+
+    // Info tab fields
+    document.getElementById('infoFullName').textContent    = name;
+    document.getElementById('infoUsername').textContent    = '(ẩn vì lý do bảo mật)';
+    document.getElementById('infoRoleDisplay').innerHTML  =
+        `<span class="badge" style="background:${roleColors[role]||'var(--text3)'}20;color:${roleColors[role]||'var(--text3)'};">${role}</span>`;
+    document.getElementById('infoBranch').textContent     = `Chi nhánh #${brId}`;
+
+    // Dark mode toggle sync
+    document.getElementById('darkModeToggle').checked = localStorage.getItem('dark') === '1';
+    document.getElementById('notifToggle').checked    = localStorage.getItem('notif') !== '0';
+}
+
+// ── Dark mode ───────────────────────────────────────────────────────────
+function applyDarkMode(on) {
+    document.body.classList.toggle('dark-theme', on);
+    localStorage.setItem('dark', on ? '1' : '0');
+    showToast(on ? '🌙 Đã bật chế độ tối' : '☀️ Đã tắt chế độ tối', 'info');
+}
+
+function saveNotifPref(on) {
+    localStorage.setItem('notif', on ? '1' : '0');
+    showToast(on ? '🔔 Đã bật thông báo' : '🔕 Đã tắt thông báo', 'info');
+}
+
+// ── Password visibility toggle ──────────────────────────────────────────
+function togglePwd(id, btn) {
+    const inp = document.getElementById(id);
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    btn.textContent = show ? '🙈' : '👁';
+}
+
+// ── Password strength ───────────────────────────────────────────────────
+function checkStrength(val) {
+    const bar   = document.getElementById('strengthBar');
+    const label = document.getElementById('strengthLabel');
+    let score = 0;
+    if (val.length >= 6)  score++;
+    if (val.length >= 10) score++;
+    if (/[A-Z]/.test(val)) score++;
+    if (/[0-9]/.test(val)) score++;
+    if (/[^A-Za-z0-9]/.test(val)) score++;
+
+    const levels = [
+        { pct:'20%', color:'var(--red)',   label:'Rất yếu' },
+        { pct:'40%', color:'var(--red)',   label:'Yếu' },
+        { pct:'60%', color:'var(--amber)', label:'Trung bình' },
+        { pct:'80%', color:'var(--blue)',  label:'Mạnh' },
+        { pct:'100%',color:'var(--green)', label:'Rất mạnh 💪' },
+    ];
+    const lv = levels[Math.min(score, 4)];
+    bar.style.width    = val ? lv.pct    : '0%';
+    bar.style.background = val ? lv.color  : '';
+    label.textContent  = val ? lv.label  : '';
+    label.style.color  = lv.color;
+}
+
+// ── Change Password ─────────────────────────────────────────────────────
+async function changePassword() {
+    const old     = document.getElementById('oldPwd').value;
+    const newP    = document.getElementById('newPwd').value;
+    const confirm = document.getElementById('confirmPwd').value;
+
+    if (!old || !newP) { showToast('⚠️ Nhập đầy đủ mật khẩu!', 'warn'); return; }
+    if (newP.length < 6) { showToast('⚠️ Mật khẩu mới tối thiểu 6 ký tự!', 'warn'); return; }
+    if (newP !== confirm) { showToast('⚠️ Mật khẩu xác nhận không khớp!', 'warn'); return; }
+
+    try {
+        await apiFetch('/api/auth/change-password', {
+            method: 'POST',
+            body: JSON.stringify({ OldPassword: old, NewPassword: newP })
+        });
+        showToast('✅ Đổi mật khẩu thành công! Vui lòng đăng nhập lại.', 'success', 5000);
+        ['oldPwd','newPwd','confirmPwd'].forEach(id => document.getElementById(id).value = '');
+        checkStrength('');
+        // Auto-redirect to login after 3 seconds
+        setTimeout(() => window.location.href = '/Login', 3000);
+    } catch(e) {
+        showToast('❌ ' + e.message, 'error');
+    }
+}
+
+// ── Activity Stats ──────────────────────────────────────────────────────
+async function loadActivity() {
+    const el = document.getElementById('activityContent');
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3);">⏳ Đang tải...</div>';
+    try {
+        const [stats, orders] = await Promise.all([
+            apiFetch(`/api/dashboard/today/${BRANCH_ID}`),
+            apiFetch(`/api/orders?branchId=${BRANCH_ID}&pageSize=5`)
+        ]);
+
+        el.innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+                <div style="background:var(--surface2);border-radius:var(--r);padding:16px;text-align:center;">
+                    <div style="font-size:24px;font-weight:800;color:var(--brown-dark);">${stats.totalOrders}</div>
+                    <div style="font-size:12px;color:var(--text3);margin-top:4px;">Đơn hôm nay</div>
+                </div>
+                <div style="background:var(--surface2);border-radius:var(--r);padding:16px;text-align:center;">
+                    <div style="font-size:24px;font-weight:800;color:var(--green);">${formatVND(stats.totalRevenue)}</div>
+                    <div style="font-size:12px;color:var(--text3);margin-top:4px;">Doanh thu</div>
+                </div>
+                <div style="background:var(--surface2);border-radius:var(--r);padding:16px;text-align:center;">
+                    <div style="font-size:24px;font-weight:800;color:var(--red);">${stats.cancelledOrders}</div>
+                    <div style="font-size:12px;color:var(--text3);margin-top:4px;">Đơn hủy</div>
+                </div>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">Đơn hàng gần đây</div>
+            ${(orders?.items||[]).map(o => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+                    <div>
+                        <div style="font-weight:600;font-size:13px;">#${o.id} — ${o.tableName||'Take Away'}</div>
+                        <div style="font-size:11px;color:var(--text3);">${formatDateTime(o.createdAt)}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-weight:700;color:var(--brown-dark);">${formatVND(o.finalAmount)}</div>
+                        <span class="badge badge-${o.orderStatus==='COMPLETED'?'green':o.orderStatus==='CANCELLED'?'red':'amber'}" style="font-size:10px;">
+                            ${o.orderStatus}
+                        </span>
+                    </div>
+                </div>
+            `).join('') || '<div style="text-align:center;padding:20px;color:var(--text3);">Chưa có đơn hàng hôm nay</div>'}
+        `;
+    } catch(e) {
+        el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--red);">❌ ${e.message}</div>`;
+    }
+}
+
+// ── Tab Switching ───────────────────────────────────────────────────────
+function switchTab(name) {
+    ['info','password','activity'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
+        document.getElementById(`panel-${t}`).style.display = t === name ? '' : 'none';
+    });
+    if (name === 'activity') loadActivity();
+}
+
+document.addEventListener('DOMContentLoaded', loadProfile);
+</script>
+}

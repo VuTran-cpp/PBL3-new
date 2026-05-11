@@ -1,0 +1,415 @@
+@{
+    Layout = "_Layout";
+    ViewBag.ActivePage = "Orders";
+    ViewBag.PageTitle = "Lịch sử Đơn hàng";
+    ViewBag.Title = "Đơn hàng";
+}
+
+<div class="page-header">
+    <div>
+        <div class="page-title">📋 Lịch sử Đơn hàng</div>
+        <div class="page-subtitle">Tra cứu và quản lý toàn bộ đơn hàng</div>
+    </div>
+    <div class="flex gap-8">
+        <div id="orderStatsBar" style="display:flex;gap:12px;font-size:13px;"></div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card" style="margin-bottom:16px;">
+    <div class="card-body" style="padding:16px;">
+        <div class="filters-bar">
+            <div class="search-wrap" style="flex:1; min-width:200px;">
+                <span>🔍</span>
+                <input type="text" id="searchOrder" placeholder="Tìm theo mã đơn, bàn, khách..." oninput="debounceSearch()">
+            </div>
+            <select id="filterStatus" class="form-control" style="width:160px;" onchange="loadOrders(1)">
+                <option value="">Tất cả trạng thái</option>
+                <option value="PENDING">Chờ xử lý</option>
+                <option value="COOKING">Đang làm</option>
+                <option value="SERVED">Đã phục vụ</option>
+                <option value="COMPLETED">Hoàn thành</option>
+                <option value="CANCELLED">Đã hủy</option>
+            </select>
+            <select id="filterType" class="form-control" style="width:140px;" onchange="loadOrders(1)">
+                <option value="">Tất cả loại</option>
+                <option value="DINE_IN">Tại bàn</option>
+                <option value="TAKE_AWAY">Mang về</option>
+            </select>
+            <input type="date" id="filterFrom" class="form-control" style="width:145px;" onchange="loadOrders(1)">
+            <input type="date" id="filterTo" class="form-control" style="width:145px;" onchange="loadOrders(1)">
+            <button class="btn btn-outline btn-sm" onclick="clearFilters()">✖ Xóa lọc</button>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Danh sách đơn hàng</div>
+        <div id="orderCount" style="font-size:13px;color:var(--text3);"></div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Mã ĐH</th>
+                    <th>Loại</th>
+                    <th>Bàn</th>
+                    <th>Khách hàng</th>
+                    <th>Trạng thái</th>
+                    <th>Thời gian</th>
+                    <th style="text-align:right;">Tổng tiền</th>
+                    <th style="text-align:center;">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="ordersTableBody">
+                <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text3);">⏳ Đang tải...</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div id="pagination" class="pagination" style="padding:16px;"></div>
+</div>
+
+<!-- Order Detail Modal -->
+<div class="modal-overlay" id="orderDetailModal">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <div class="modal-title" id="modalTitle">Chi tiết đơn hàng</div>
+            <button class="modal-close" onclick="closeModal('orderDetailModal')">×</button>
+        </div>
+        <div class="modal-body" id="modalBody" style="padding:0;">
+            <div style="text-align:center;padding:40px;color:var(--text3);">⏳ Đang tải...</div>
+        </div>
+        <div class="modal-footer" id="modalFooter"></div>
+    </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal-overlay" id="paymentModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">💳 Thanh toán đơn hàng</div>
+            <button class="modal-close" onclick="closeModal('paymentModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Tổng tiền cần thanh toán</label>
+                <div style="font-size:24px;font-weight:800;color:var(--red);" id="payAmount">0đ</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Phương thức thanh toán</label>
+                <select id="payMethod" class="form-control">
+                    <option value="CASH">💵 Tiền mặt</option>
+                    <option value="BANK">🏦 Chuyển khoản</option>
+                    <option value="CARD">💳 Thẻ ngân hàng</option>
+                </select>
+            </div>
+            <input type="hidden" id="payOrderId">
+            <input type="hidden" id="payOrderAmount">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('paymentModal')">Hủy</button>
+            <button class="btn btn-success" onclick="processPayment()">✅ Xác nhận thanh toán</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+let currentPage = 1;
+let searchTimer = null;
+
+const STATUS_MAP = {
+    PENDING: { label:'Chờ xử lý', badge:'badge-amber' },
+    COOKING: { label:'Đang làm', badge:'badge-blue' },
+    SERVED:  { label:'Đã phục vụ', badge:'badge-purple' },
+    COMPLETED:{ label:'Hoàn thành', badge:'badge-green' },
+    CANCELLED:{ label:'Đã hủy', badge:'badge-red' }
+};
+
+function debounceSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => loadOrders(1), 400);
+}
+
+function clearFilters() {
+    document.getElementById('searchOrder').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterFrom').value = '';
+    document.getElementById('filterTo').value = '';
+    loadOrders(1);
+}
+
+async function loadOrders(page = 1) {
+    currentPage = page;
+    const status   = document.getElementById('filterStatus').value;
+    const type     = document.getElementById('filterType').value;
+    const from     = document.getElementById('filterFrom').value;
+    const to       = document.getElementById('filterTo').value;
+
+    let qs = `branchId=${BRANCH_ID}&page=${page}&pageSize=15`;
+    if (status) qs += `&status=${status}`;
+    if (type)   qs += `&orderType=${type}`;
+    if (from)   qs += `&fromDate=${from}`;
+    if (to)     qs += `&toDate=${to}T23:59:59`;
+
+    const body = document.getElementById('ordersTableBody');
+    body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;"><div class="skeleton" style="height:16px;width:200px;margin:auto;border-radius:6px;"></div></td></tr>`;
+
+    try {
+        const data = await apiFetch(`/api/orders?${qs}`);
+        document.getElementById('orderCount').textContent = `Tổng: ${data.totalCount} đơn`;
+
+        if (!data.items.length) {
+            body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="es-icon">📋</div><div class="es-title">Không có đơn hàng nào</div></div></td></tr>`;
+            document.getElementById('pagination').innerHTML = '';
+            return;
+        }
+
+        body.innerHTML = data.items.map(o => {
+            const st = STATUS_MAP[o.orderStatus] || { label: o.orderStatus, badge:'badge-gray' };
+            return `<tr>
+                <td><span style="font-weight:700;color:var(--brown-dark);">#${o.id}</span></td>
+                <td><span class="badge ${o.orderType==='DINE_IN'?'badge-brown':'badge-blue'}">${o.orderType==='DINE_IN'?'Tại bàn':'Mang về'}</span></td>
+                <td>${o.tableName || '<span style="color:var(--text3)">—</span>'}</td>
+                <td>${o.customerName || '<span style="color:var(--text3)">Khách lẻ</span>'}</td>
+                <td><span class="badge ${st.badge}">${st.label}</span></td>
+                <td style="font-size:12px;color:var(--text3);">${formatDateTime(o.createdAt)}</td>
+                <td style="text-align:right;font-weight:700;color:var(--red);">${formatVND(o.finalAmount)}</td>
+                <td style="text-align:center;">
+                    <button class="btn btn-outline btn-sm" onclick="viewOrderDetail(${o.id})">👁 Chi tiết</button>
+                    <a href="/Orders/${o.id}" class="btn btn-outline btn-sm" target="_blank" style="text-decoration:none;">🔗</a>
+                </td>
+            </tr>`;
+        }).join('');
+
+        renderPagination(data.page, data.totalPages);
+    } catch(e) {
+        body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--red);">❌ ${e.message}</td></tr>`;
+    }
+}
+
+function renderPagination(page, totalPages) {
+    const el = document.getElementById('pagination');
+    if (totalPages <= 1) { el.innerHTML = ''; return; }
+    let html = `<button class="page-btn" onclick="loadOrders(${page-1})" ${page<=1?'disabled':''}>‹</button>`;
+    for (let p = Math.max(1, page-2); p <= Math.min(totalPages, page+2); p++) {
+        html += `<button class="page-btn ${p===page?'active':''}" onclick="loadOrders(${p})">${p}</button>`;
+    }
+    html += `<button class="page-btn" onclick="loadOrders(${page+1})" ${page>=totalPages?'disabled':''}>›</button>`;
+    el.innerHTML = html;
+}
+
+async function viewOrderDetail(id) {
+    document.getElementById('modalTitle').textContent = `Chi tiết Đơn hàng #${id}`;
+    document.getElementById('modalBody').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3);">⏳ Đang tải...</div>`;
+    document.getElementById('modalFooter').innerHTML = '';
+    document.getElementById('orderDetailModal').classList.add('active');
+
+    try {
+        const o = await apiFetch(`/api/orders/${id}`);
+        const st = STATUS_MAP[o.orderStatus] || { label: o.orderStatus, badge:'badge-gray' };
+
+        document.getElementById('modalBody').innerHTML = `
+            <div style="padding:20px; border-bottom:1px solid var(--border); display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div><div class="form-label">Trạng thái</div><span class="badge ${st.badge}" style="font-size:13px;">${st.label}</span></div>
+                <div><div class="form-label">Loại đơn</div><span>${o.orderType==='DINE_IN'?'🪑 Tại bàn':'🥡 Mang về'}</span></div>
+                <div><div class="form-label">Bàn</div><b>${o.tableName || '—'}</b></div>
+                <div><div class="form-label">Khách hàng</div><b>${o.customerName || 'Khách lẻ'}</b></div>
+                <div><div class="form-label">Thời gian tạo</div>${formatDateTime(o.createdAt)}</div>
+                <div><div class="form-label">Ghi chú</div>${o.note || '—'}</div>
+            </div>
+            <div style="padding:16px 20px; border-bottom:1px solid var(--border);">
+                <div class="card-title" style="margin-bottom:12px;">🧾 Danh sách món</div>
+                ${o.items.map(i => `
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--surface2);font-size:13px;">
+                        <div>
+                            <span style="font-weight:600;">${i.itemName}</span>
+                            <span style="color:var(--text3);margin-left:8px;">x${i.quantity}</span>
+                            ${i.note ? `<div style="font-size:11px;color:var(--text3);font-style:italic;">↳ ${i.note}</div>` : ''}
+                        </div>
+                        <div style="font-weight:700;color:var(--red);">${formatVND(i.totalPrice)}</div>
+                    </div>
+                `).join('')}
+            </div>
+            <div style="padding:16px 20px;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px;"><span>Tạm tính</span><span>${formatVND(o.subTotal)}</span></div>
+                ${o.discountAmount > 0 ? `<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px;color:var(--green);"><span>Giảm giá</span><span>-${formatVND(o.discountAmount)}</span></div>` : ''}
+                <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;color:var(--red);padding-top:10px;border-top:1px dashed var(--border);"><span>TỔNG CỘNG</span><span>${formatVND(o.finalAmount)}</span></div>
+            </div>
+        `;
+
+        // Footer actions
+        let footer = '';
+        const canProgress = o.orderStatus === 'PENDING' || o.orderStatus === 'COOKING' || o.orderStatus === 'SERVED';
+        if (canProgress) {
+            const nextStatus = { PENDING:'COOKING', COOKING:'SERVED', SERVED:'COMPLETED' }[o.orderStatus];
+            const nextLabel  = { PENDING:'🔥 Bếp nhận', COOKING:'✅ Đã phục vụ', SERVED:'💳 Hoàn thành' }[o.orderStatus];
+            footer += `<button class="btn btn-success" onclick="advanceStatus(${o.id}, '${nextStatus}')">${nextLabel}</button>`;
+        }
+        if (o.orderStatus === 'COOKING' || o.orderStatus === 'SERVED') {
+            footer += `<button class="btn btn-primary" onclick="openPayment(${o.id}, ${o.finalAmount})">💳 Thanh toán</button>`;
+        }
+        // 🖨️ In bill nhiệt — hiển thị cho SERVED và COMPLETED
+        if (o.orderStatus === 'SERVED' || o.orderStatus === 'COMPLETED') {
+            footer += `<button class="btn btn-outline" onclick="printBill(${o.id})">🖨️ In bill</button>`;
+        }
+        if (o.orderStatus === 'PENDING' || o.orderStatus === 'COOKING') {
+            footer += `<button class="btn btn-danger btn-sm" onclick="cancelOrder(${o.id})">❌ Hủy đơn</button>`;
+        }
+        footer += `<button class="btn btn-outline" onclick="closeModal('orderDetailModal')">Đóng</button>`;
+        document.getElementById('modalFooter').innerHTML = footer;
+    } catch(e) {
+        document.getElementById('modalBody').innerHTML = `<div style="text-align:center;padding:40px;color:var(--red);">❌ ${e.message}</div>`;
+    }
+}
+
+function openPayment(orderId, amount) {
+    closeModal('orderDetailModal');
+    document.getElementById('payOrderId').value = orderId;
+    document.getElementById('payOrderAmount').value = amount;
+    document.getElementById('payAmount').textContent = formatVND(amount);
+    document.getElementById('paymentModal').classList.add('active');
+}
+
+async function processPayment() {
+    const orderId = parseInt(document.getElementById('payOrderId').value);
+    const amount  = parseFloat(document.getElementById('payOrderAmount').value);
+    const method  = document.getElementById('payMethod').value;
+    try {
+        await apiFetch('/api/payments', {
+            method: 'POST',
+            body: JSON.stringify({ OrderId: orderId, Amount: amount, Method: method })
+        });
+        // Mark order as COMPLETED
+        await apiFetch(`/api/orders/${orderId}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ Status: 'COMPLETED', Note: 'Thanh toán thành công' })
+        });
+        closeModal('paymentModal');
+        showToast(`✅ Thanh toán thành công! Đơn #${orderId} đã hoàn thành.`);
+        loadOrders(currentPage);
+    } catch(e) {
+        showToast('❌ Lỗi thanh toán: ' + e.message, 'error');
+    }
+}
+
+async function cancelOrder(id) {
+    if (!confirmDialog(`Xác nhận hủy đơn hàng #${id}?`)) return;
+    try {
+        await apiFetch(`/api/orders/${id}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ Status: 'CANCELLED', Note: 'Hủy thủ công' })
+        });
+        closeModal('orderDetailModal');
+        showToast(`✅ Đã hủy đơn #${id}`);
+        loadOrders(currentPage);
+    } catch(e) {
+        showToast('❌ ' + e.message, 'error');
+    }
+}
+
+async function advanceStatus(id, status) {
+    const label = { COOKING:'Đã chuyển bếp', SERVED:'Đã phục vụ', COMPLETED:'Hoàn thành' }[status] || status;
+    try {
+        await apiFetch(`/api/orders/${id}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ Status: status, Note: label })
+        });
+        showToast(`✅ Order #${id} — ${label}`);
+        closeModal('orderDetailModal');
+        loadOrders(currentPage);
+    } catch(e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+// 🖨️ In bill nhiệt — hỗ trợ ghi chú món + khuyến mãi
+async function printBill(id) {
+    try {
+        const o = await apiFetch(`/api/orders/${id}`);
+        const itemsHtml = o.items.map(i => {
+            const noteHtml = i.note
+                ? `<div style="font-size:11px;color:#888;font-style:italic;padding-left:8px;">↳ ${i.note}</div>`
+                : '';
+            return `<div style="padding:4px 0;border-bottom:1px dashed #ddd;font-size:13px;">
+                <div style="display:flex;justify-content:space-between;">
+                    <span>${i.quantity}x ${i.itemName}</span>
+                    <span>${i.totalPrice.toLocaleString('vi-VN')}đ</span>
+                </div>${noteHtml}
+            </div>`;
+        }).join('');
+
+        const promoHtml = o.promotions && o.promotions.length
+            ? o.promotions.map(p =>
+                `<div style="display:flex;justify-content:space-between;font-size:12px;color:#27ae60;">
+                    <span>🎟 ${p.promotionName}</span>
+                    <span>-${p.discountValue.toLocaleString('vi-VN')}đ</span>
+                </div>`).join('')
+            : '';
+
+        const receiptHtml = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bill #${id}</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Courier New',monospace; padding:16px; max-width:300px; margin:auto; }
+        @@media print {
+            body { padding:0; }
+            .no-print { display:none; }
+        }
+    </style>
+</head>
+<body>
+    <div style="text-align:center;margin-bottom:8px;">
+        <div style="font-size:18px;font-weight:bold;">☕ ABC COFFEE</div>
+        <div style="font-size:11px;color:#666;">123 Nguyễn Văn Linh, Đà Nẵng</div>
+        <div style="font-size:11px;color:#666;">ĐT: 0901 234 567</div>
+    </div>
+    <div style="border-top:2px dashed #000;border-bottom:2px dashed #000;padding:6px 0;margin:8px 0;font-size:12px;">
+        <div style="display:flex;justify-content:space-between;">
+            <span><b>Đơn #${o.id}</b></span>
+            <span>${o.orderType === 'DINE_IN' ? '🪑 Tại bàn' : '🥡 Mang về'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+            <span>Bàn: <b>${o.tableName || 'Take Away'}</b></span>
+            <span>${o.customerName || 'Khách lẻ'}</span>
+        </div>
+        <div style="font-size:11px;color:#555;">${new Date(o.createdAt).toLocaleString('vi-VN')}</div>
+    </div>
+    <div style="margin-bottom:8px;">${itemsHtml}</div>
+    ${o.discountAmount > 0 ? `
+    <div style="margin-bottom:4px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Tạm tính</span><span>${o.subTotal.toLocaleString('vi-VN')}đ</span></div>
+        ${promoHtml}
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#c0392b;"><span>Tổng giảm</span><span>-${o.discountAmount.toLocaleString('vi-VN')}đ</span></div>
+    </div>` : ''}
+    <div style="border-top:2px solid #000;padding-top:8px;margin-top:8px;display:flex;justify-content:space-between;font-size:16px;font-weight:bold;">
+        <span>TỔNG CỘNG</span><span>${o.finalAmount.toLocaleString('vi-VN')}đ</span>
+    </div>
+    <div style="text-align:center;margin-top:16px;font-size:12px;color:#555;">
+        <div>Cảm ơn quý khách! Hẹn gặp lại 🙏</div>
+        <div style="margin-top:4px;">wifi: abccoffee | pass: 12345678</div>
+    </div>
+    <div class="no-print" style="text-align:center;margin-top:16px;">
+        <button onclick="window.print()" style="padding:8px 20px;background:#2c3e50;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🖨️ In hoá đơn</button>
+    </div>
+    <script>setTimeout(() => window.print(), 400);<\/script>
+</body>
+</html>`;
+
+        const win = window.open('', '_blank', 'width=400,height=650');
+        win.document.write(receiptHtml);
+        win.document.close();
+    } catch(e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+}
+
+document.addEventListener('DOMContentLoaded', () => loadOrders(1));
+</script>
+}
