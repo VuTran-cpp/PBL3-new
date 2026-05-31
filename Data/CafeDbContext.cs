@@ -174,6 +174,11 @@ namespace CafeManagement.Data
                 .OnDelete(DeleteBehavior.SetNull);
 
             modelBuilder.Entity<WorkShift>()
+                .HasOne(ws => ws.Employee)
+                .WithMany(e => e.WorkShifts)
+                .HasForeignKey(ws => ws.EmployeeId);
+
+            modelBuilder.Entity<WorkShift>()
                 .HasOne(ws => ws.Account)
                 .WithMany()
                 .HasForeignKey(ws => ws.AccountId)

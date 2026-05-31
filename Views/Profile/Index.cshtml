@@ -302,8 +302,8 @@ async function loadActivity() {
     el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3);">⏳ Đang tải...</div>';
     try {
         const [stats, orders] = await Promise.all([
-            apiFetch(`/api/dashboard/today/${BRANCH_ID}`),
-            apiFetch(`/api/orders?branchId=${BRANCH_ID}&pageSize=5`)
+            apiFetch(`/api/dashboard/today/${BRANCH_ID}?employeeId=${EMPLOYEE_ID}`),
+            apiFetch(`/api/orders?branchId=${BRANCH_ID}&employeeId=${EMPLOYEE_ID}&pageSize=5`)
         ]);
 
         el.innerHTML = `

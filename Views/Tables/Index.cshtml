@@ -101,9 +101,12 @@
                 </div>
             </div>
         </div>
-        <div class="modal-footer">
-            <button class="btn btn-outline" onclick="closeModal('statusModal')">Hủy</button>
-            <button class="btn btn-primary" onclick="updateStatus()">✅ Cập nhật</button>
+        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+            <button class="btn btn-danger" id="btnDeleteTable" style="display:none;" onclick="deleteTableFromModal()">🗑️ Xóa bàn</button>
+            <div style="display:flex;gap:8px;margin-left:auto;">
+                <button class="btn btn-outline" onclick="closeModal('statusModal')">Hủy</button>
+                <button class="btn btn-primary" onclick="updateStatus()">✅ Cập nhật</button>
+            </div>
         </div>
     </div>
 </div>
@@ -227,9 +230,11 @@ async function loadTables(silent = false) {
                         </span>
                     </div>
                 </div>
-                <div style="padding:0 12px 12px;display:flex;justify-content:center;">
-                    <button class="btn btn-outline btn-sm" style="width:100%;font-size:11px;"
+                <div style="padding:0 12px 12px;display:flex;justify-content:center;gap:8px;">
+                    <button class="btn btn-outline btn-sm" style="flex:1;font-size:11px;"
                             onclick="event.stopPropagation();showQR(${t.id},'${t.name.replace(/'/g,'\\u0027')}')">📱 QR Code</button>
+                    ${isManagerOrAdmin() ? `<button class="btn btn-outline btn-sm" style="color:var(--red);border-color:rgba(231,76,60,.2);font-size:11px;padding:6px 10px;"
+                            title="Xóa bàn" onclick="event.stopPropagation();deleteTableDirect(${t.id}, '${t.name.replace(/'/g,'\\u0027')}')">🗑️</button>` : ''}
                 </div>
             </div>`;
         }).join('');
@@ -242,6 +247,13 @@ function openStatusModal(id, name, currentStatus) {
     document.getElementById('selectedTableId').value = id;
     document.getElementById('statusModalTitle').textContent = `Cập nhật: ${name}`;
     selectedStatus = currentStatus;
+    
+    // Toggle delete button for managers
+    const btnDel = document.getElementById('btnDeleteTable');
+    if (btnDel) {
+        btnDel.style.display = isManagerOrAdmin() ? '' : 'none';
+    }
+
     document.querySelectorAll('.status-opt').forEach(opt => {
         opt.style.border = '2px solid var(--border)';
         opt.style.background = '';
@@ -249,6 +261,32 @@ function openStatusModal(id, name, currentStatus) {
     const opt = document.querySelector(`.status-opt[data-val="${currentStatus}"]`);
     if (opt) { opt.style.border = '2px solid var(--brown-light)'; opt.style.background = 'var(--cream2)'; }
     document.getElementById('statusModal').classList.add('active');
+}
+
+async function deleteTableDirect(id, name) {
+    if (!confirm(`Bạn có chắc chắn muốn xóa bàn "${name}"?`)) return;
+    try {
+        await apiFetch(`/api/tables/${id}`, { method: 'DELETE' });
+        showToast(`✅ Đã xóa bàn "${name}" thành công!`);
+        loadTables();
+    } catch(e) {
+        showToast('❌ Lỗi: ' + e.message, 'error');
+    }
+}
+
+async function deleteTableFromModal() {
+    const id = document.getElementById('selectedTableId').value;
+    const title = document.getElementById('statusModalTitle').textContent;
+    const name = title.replace('Cập nhật: ', '');
+    if (!confirm(`Bạn có chắc chắn muốn xóa bàn "${name}"?`)) return;
+    try {
+        await apiFetch(`/api/tables/${id}`, { method: 'DELETE' });
+        showToast(`✅ Đã xóa bàn "${name}" thành công!`);
+        closeModal('statusModal');
+        loadTables();
+    } catch(e) {
+        showToast('❌ Lỗi: ' + e.message, 'error');
+    }
 }
 
 async function updateStatus() {

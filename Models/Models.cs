@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CafeManagement.Models
@@ -66,6 +66,7 @@ namespace CafeManagement.Models
 
         [ForeignKey("BranchId")] public Branch Branch { get; set; } = null!;
         public Account? Account { get; set; }
+        public ICollection<WorkShift> WorkShifts { get; set; } = new List<WorkShift>();
     }
 
     [Table("Role")]

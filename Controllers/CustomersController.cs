@@ -38,6 +38,15 @@ namespace CafeManagement.Controllers
                 new PagedResult<CustomerDto>(items, total, page, pageSize)));
         }
 
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<ApiResponse<CustomerDto>>> GetCustomer(int id)
+        {
+            var c = await _db.Customers.FindAsync(id);
+            if (c == null) return NotFound(new ApiResponse<CustomerDto>(false, "Không tìm thấy khách hàng", null));
+            return Ok(new ApiResponse<CustomerDto>(true, null,
+                new CustomerDto(c.Id, c.FullName, c.Phone, c.Email, c.Birthday, c.Points, c.MemberTier)));
+        }
+
         [HttpGet("lookup")]
         public async Task<ActionResult<ApiResponse<CustomerDto>>> LookupByPhone([FromQuery] string phone)
         {

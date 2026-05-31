@@ -99,6 +99,15 @@ namespace CafeManagement.DTOs
     public record OpenShiftRequest(int BranchId, int EmployeeId, decimal StartingCash);
     public record CloseShiftRequest(decimal ActualEndingCash, string? Note);
 
+    public record DailyShiftStatDto(
+        string Date,
+        int ShiftCount,
+        decimal TotalStartingCash,
+        decimal TotalRevenue,
+        decimal TotalActualEndingCash,
+        decimal TotalExpectedCash,
+        decimal TotalDifference);
+
     // ================================================================
     // ORDER
     // ================================================================

@@ -182,6 +182,59 @@
     <button onclick="closeReceipt()" style="width:100%;margin-top:6px;padding:8px;background:#000;color:#fff;border:none;cursor:pointer;border-radius:6px;font-size:13px;">Đóng</button>
 </div>
 
+<!-- POS Open Shift Modal -->
+<div class="modal-overlay" id="posOpenShiftModal">
+    <div class="modal" style="max-width:400px;">
+        <div class="modal-header">
+            <div class="modal-title">🟢 Mở ca làm việc</div>
+            <button class="modal-close" onclick="closePosModal('posOpenShiftModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Nhân viên ca trực <span style="color:var(--red)">*</span></label>
+                <select id="posShiftEmployeeId" class="form-control">
+                    <option value="">-- Chọn nhân viên --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Tiền đầu ca (đ) <span style="color:var(--red)">*</span></label>
+                <input type="number" id="posStartingCash" class="form-control" placeholder="VD: 500000" min="0" value="0">
+                <div style="font-size:11px;color:var(--text3);margin-top:4px;">Số tiền mặt trong két khi bắt đầu ca</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-success" style="width:100%;" onclick="submitPosOpenShift()">✅ Xác nhận mở ca</button>
+        </div>
+    </div>
+</div>
+
+<!-- POS Close Shift Modal -->
+<div class="modal-overlay" id="posCloseShiftModal">
+    <div class="modal" style="max-width:400px;">
+        <div class="modal-header">
+            <div class="modal-title">🔴 Đóng ca làm việc</div>
+            <button class="modal-close" onclick="closePosModal('posCloseShiftModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div id="posShiftSummary" style="background:var(--surface2);border-radius:var(--r);padding:16px;margin-bottom:16px;font-size:13px;line-height:1.6;">
+                <!-- Thông tin tổng kết ca sẽ được inject ở đây -->
+            </div>
+            <div class="form-group">
+                <label class="form-label">Tiền mặt thực tế trong két (đ) <span style="color:var(--red)">*</span></label>
+                <input type="number" id="posActualCash" class="form-control" placeholder="Đếm và nhập số tiền thực tế" min="0">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Ghi chú</label>
+                <textarea id="posCloseNote" class="form-control" rows="2" placeholder="Ghi chú khi đóng ca..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closePosModal('posCloseShiftModal')">Hủy</button>
+            <button class="btn btn-danger" onclick="submitPosCloseShift()">🔴 Xác nhận đóng ca</button>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
     // ════════════════════════════════════════════════════════
@@ -213,8 +266,8 @@
             currentShiftId = shift.id;
             showToast(`✅ Ca làm việc: #${currentShiftId} đang mở`);
         } catch (err) {
-            // Không có ca → hiện cảnh báo nhưng không chặn UI
-            showToast(`⚠️ Chưa mở ca làm việc! Không thể tạo order mới.`, 'warn');
+            currentShiftId = null;
+            openShiftModal();
             console.warn('Shift warning:', err.message);
         }
 
@@ -236,6 +289,183 @@
         // 5. Load tổng tiền cho các bàn đang có khách
         loadOccupiedTableTotals();
     }
+
+    // ── SHIFT MANAGEMENT FUNCTIONS ON POS ──────────────────
+    function openShiftModal() {
+        loadBranchEmployees();
+        document.getElementById('posOpenShiftModal').classList.add('active');
+    }
+
+    async function loadBranchEmployees() {
+        try {
+            const res = await apiFetch(`/api/employees?branchId=${BRANCH_ID}&pageSize=100`);
+            const select = document.getElementById('posShiftEmployeeId');
+            select.innerHTML = '<option value="">-- Chọn nhân viên --</option>';
+            if (res && res.items) {
+                res.items.forEach(emp => {
+                    const opt = document.createElement('option');
+                    opt.value = emp.id;
+                    opt.textContent = `${emp.fullName} (${emp.position})`;
+                    select.appendChild(opt);
+                });
+            }
+        } catch (err) {
+            console.error('loadBranchEmployees error:', err);
+            showToast('❌ Lỗi tải danh sách nhân viên: ' + err.message, 'error');
+        }
+    }
+
+    function closePosModal(id) {
+        document.getElementById(id).classList.remove('active');
+    }
+
+    async function submitPosOpenShift() {
+        const empId = document.getElementById('posShiftEmployeeId').value;
+        const cashInput = document.getElementById('posStartingCash').value;
+        if (!empId) {
+            showToast('⚠️ Vui lòng chọn nhân viên!', 'warn');
+            return;
+        }
+        const cash = parseFloat(cashInput) || 0;
+        if (cash < 0) {
+            showToast('⚠️ Tiền đầu ca không thể âm!', 'warn');
+            return;
+        }
+
+        try {
+            showToast('⏳ Đang mở ca...', 'info');
+            const newShift = await apiFetch('/api/shifts/open', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    BranchId: BRANCH_ID,
+                    EmployeeId: parseInt(empId),
+                    StartingCash: cash
+                })
+            });
+            currentShiftId = newShift.id;
+            closePosModal('posOpenShiftModal');
+            showToast(`✅ Mở ca thành công! Ca #${currentShiftId} đang hoạt động.`);
+            
+            // Reload layout shift badge
+            if (window.loadShiftStatus) {
+                await window.loadShiftStatus();
+            }
+        } catch (err) {
+            console.error('submitPosOpenShift error:', err);
+            showToast('❌ Mở ca thất bại: ' + err.message, 'error');
+        }
+    }
+
+    async function onShiftBadgeClick() {
+        if (!currentShiftId) return;
+        try {
+            showToast('⏳ Đang lấy thông tin ca...', 'info');
+            const shift = await apiFetch(`/api/shifts/current/${BRANCH_ID}`);
+            
+            const startingCash = shift.startingCash || 0;
+            const revenue = shift.revenue || 0;
+            const expectedCash = startingCash + revenue;
+            
+            document.getElementById('posShiftSummary').innerHTML = `
+                <div style="font-weight:700;font-size:15px;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:6px;">⏱️ Ca làm việc #${shift.id}</div>
+                <div>👤 <strong>Nhân viên:</strong> ${shift.employeeName}</div>
+                <div>💵 <strong>Tiền đầu ca:</strong> ${startingCash.toLocaleString('vi-VN')} đ</div>
+                <div>☕ <strong>Doanh thu ca (Hoàn thành):</strong> ${revenue.toLocaleString('vi-VN')} đ</div>
+                <div style="font-size:14px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);color:var(--green);font-weight:700;">
+                    💵 Tiền mặt dự kiến: ${expectedCash.toLocaleString('vi-VN')} đ
+                </div>
+                <div style="font-weight:700;font-size:13px;margin-top:16px;margin-bottom:8px;border-top:1px solid var(--border);padding-top:12px;">📋 Đơn hàng trong ca:</div>
+                <div id="posShiftOrdersList" style="max-height:160px;overflow-y:auto;font-size:12px;display:flex;flex-direction:column;gap:6px;">
+                    ⏳ Đang tải đơn hàng...
+                </div>
+            `;
+            
+            document.getElementById('posActualCash').value = expectedCash.toFixed(0);
+            document.getElementById('posCloseNote').value = '';
+            
+            document.getElementById('posCloseShiftModal').classList.add('active');
+
+            // Fetch shift orders
+            apiFetch(`/api/orders?branchId=${BRANCH_ID}&shiftId=${shift.id}&pageSize=100`)
+                .then(res => {
+                    const listEl = document.getElementById('posShiftOrdersList');
+                    if (!listEl) return;
+                    const items = res?.items || [];
+                    if (items.length === 0) {
+                        listEl.innerHTML = '<div style="color:var(--text3);font-style:italic;text-align:center;padding:10px;">Không có đơn hàng nào trong ca</div>';
+                        return;
+                    }
+                    listEl.innerHTML = items.map(o => `
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);">
+                            <div>
+                                <span style="font-weight:700;color:var(--brown-dark);">#${o.id}</span>
+                                <span style="color:var(--text3);margin-left:4px;">(${o.orderType === 'DINE_IN' ? 'Bàn ' + (o.tableName || '—') : 'Mang về'})</span>
+                            </div>
+                            <div style="text-align:right;">
+                                <span style="font-weight:700;color:var(--red);">${formatVND(o.finalAmount)}</span>
+                                <span class="badge ${o.orderStatus === 'COMPLETED' ? 'badge-green' : o.orderStatus === 'CANCELLED' ? 'badge-red' : 'badge-amber'}" style="font-size:9px;padding:2px 6px;margin-left:4px;">
+                                    ${o.orderStatus === 'COMPLETED' ? 'Hoàn thành' : o.orderStatus === 'CANCELLED' ? 'Đã hủy' : 'Đang chạy'}
+                                </span>
+                            </div>
+                        </div>
+                    `).join('');
+                })
+                .catch(err => {
+                    const listEl = document.getElementById('posShiftOrdersList');
+                    if (listEl) listEl.innerHTML = `<div style="color:var(--red);text-align:center;padding:10px;">❌ Lỗi tải đơn: ${err.message}</div>`;
+                });
+        } catch (err) {
+            console.error('onShiftBadgeClick error:', err);
+            showToast('❌ Lỗi lấy thông tin ca: ' + err.message, 'error');
+        }
+    }
+
+    async function submitPosCloseShift() {
+        if (!currentShiftId) return;
+        const actualInput = document.getElementById('posActualCash').value;
+        if (actualInput === '') {
+            showToast('⚠️ Vui lòng nhập số tiền mặt thực tế!', 'warn');
+            return;
+        }
+        const actualCash = parseFloat(actualInput);
+        if (actualCash < 0) {
+            showToast('⚠️ Tiền mặt thực tế không thể âm!', 'warn');
+            return;
+        }
+        const note = document.getElementById('posCloseNote').value;
+        
+        try {
+            showToast('⏳ Đang đóng ca...', 'info');
+            await apiFetch(`/api/shifts/${currentShiftId}/close`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ActualEndingCash: actualCash,
+                    Note: note
+                })
+            });
+            
+            showToast('✅ Đã đóng ca thành công!');
+            closePosModal('posCloseShiftModal');
+            
+            currentShiftId = null;
+            
+            // Cập nhật lại badge trên topbar
+            if (window.loadShiftStatus) {
+                await window.loadShiftStatus();
+            }
+            
+            // Yêu cầu mở ca mới
+            openShiftModal();
+        } catch (err) {
+            console.error('submitPosCloseShift error:', err);
+            showToast('❌ Đóng ca thất bại: ' + err.message, 'error');
+        }
+    }
+
+    // Expose onShiftBadgeClick globally for Layout click handler
+    window.onShiftBadgeClick = onShiftBadgeClick;
 
     // Load tổng tiền cho bàn đang occupied
     async function loadOccupiedTableTotals() {

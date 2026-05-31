@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
@@ -6,6 +6,19 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<RootNamespace>CafeManagement</RootNamespace>
 	</PropertyGroup>
+
+	<!-- Exclude backup/duplicate folders from compilation -->
+	<ItemGroup>
+		<Compile Remove="CafeManagement_OLD\**" />
+		<Content Remove="CafeManagement_OLD\**" />
+		<EmbeddedResource Remove="CafeManagement_OLD\**" />
+		<None Remove="CafeManagement_OLD\**" />
+
+		<Compile Remove="CafeManagement\**" />
+		<Content Remove="CafeManagement\**" />
+		<EmbeddedResource Remove="CafeManagement\**" />
+		<None Remove="CafeManagement\**" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<!-- Entity Framework Core + SQL Server -->

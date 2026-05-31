@@ -52,17 +52,6 @@ namespace CafeManagement.Controllers
         }
     }
 
-    // ─── Orders ──────────────────────────────────────────────────────────
-    public class OrdersMvcController : AuthenticatedController
-    {
-        public IActionResult Index()
-        {
-            if (!IsAuthenticated()) return RequireAuth();
-            ViewBag.ActivePage = "Orders";
-            ViewBag.PageTitle  = "Lịch sử Đơn hàng";
-            return View("~/Views/Orders/Index.cshtml");
-        }
-    }
 
     // ─── Menu ────────────────────────────────────────────────────────────
     public class MenuMvcController : AuthenticatedController
@@ -165,18 +154,6 @@ namespace CafeManagement.Controllers
         }
     }
 
-    // ─── Order Detail ─────────────────────────────────
-    public class OrderDetailMvcController : AuthenticatedController
-    {
-        public IActionResult Index(long id)
-        {
-            if (!IsAuthenticated()) return RequireAuth();
-            ViewBag.OrderId   = id;
-            ViewBag.ActivePage = "Orders";
-            ViewBag.PageTitle  = $"Đơn Hàng #{id}";
-            return View("~/Views/Orders/Detail.cshtml");
-        }
-    }
 
     // ─── Public Menu (không yêu cầu đăng nhập — dành cho khách scan QR) ──────
     public class PublicMenuController : Controller

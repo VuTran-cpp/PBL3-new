@@ -111,6 +111,55 @@ namespace CafeManagement.Controllers
             return Ok(new ApiResponse<List<WorkShiftDto>>(true, null, dtos));
         }
 
+        [HttpGet("daily-stats/{branchId:int}")]
+        public async Task<ActionResult<ApiResponse<List<DailyShiftStatDto>>>> GetDailyShiftStats(
+            int branchId, [FromQuery] int days = 30)
+        {
+            var cutoffDate = DateTime.UtcNow.Date.AddDays(-days);
+
+            var shifts = await _db.WorkShifts
+                .Where(ws => ws.BranchId == branchId && ws.StartTime >= cutoffDate)
+                .OrderByDescending(ws => ws.StartTime)
+                .ToListAsync();
+
+            if (!shifts.Any())
+                return Ok(new ApiResponse<List<DailyShiftStatDto>>(true, null, new List<DailyShiftStatDto>()));
+
+            var shiftIds = shifts.Select(s => s.Id).ToList();
+
+            var revenueMap = await _db.Orders
+                .Include(o => o.OrderStatus)
+                .Where(o => o.ShiftId != null && shiftIds.Contains(o.ShiftId.Value)
+                         && o.OrderStatus.Name == "COMPLETED")
+                .GroupBy(o => o.ShiftId!.Value)
+                .Select(g => new { ShiftId = g.Key, Revenue = g.Sum(o => o.FinalAmount) })
+                .ToDictionaryAsync(x => x.ShiftId, x => x.Revenue);
+
+            var stats = shifts
+                .GroupBy(s => s.StartTime.Date)
+                .Select(g => {
+                    var totalStarting = g.Sum(s => s.StartingCash);
+                    var totalRevenue  = g.Sum(s => revenueMap.GetValueOrDefault(s.Id, 0));
+                    var totalActual   = g.Sum(s => s.ActualEndingCash ?? 0);
+                    var totalExpected = totalStarting + totalRevenue;
+                    var totalDiff     = g.Sum(s => s.Difference ?? 0);
+
+                    return new DailyShiftStatDto(
+                        g.Key.ToString("yyyy-MM-dd"),
+                        g.Count(),
+                        totalStarting,
+                        totalRevenue,
+                        totalActual,
+                        totalExpected,
+                        totalDiff
+                    );
+                })
+                .OrderByDescending(x => x.Date)
+                .ToList();
+
+            return Ok(new ApiResponse<List<DailyShiftStatDto>>(true, null, stats));
+        }
+
         private static WorkShiftDto MapToShiftDto(WorkShift ws, decimal revenue) => new(
             ws.Id, ws.BranchId, ws.EmployeeId, ws.Employee?.FullName ?? "",
             ws.StartTime, ws.EndTime,

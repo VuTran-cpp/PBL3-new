@@ -26,6 +26,8 @@ namespace CafeManagement.Controllers
             [FromQuery] string? orderType,
             [FromQuery] DateTime? fromDate,
             [FromQuery] DateTime? toDate,
+            [FromQuery] long? shiftId,
+            [FromQuery] int? employeeId,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20)
         {
@@ -33,9 +35,22 @@ namespace CafeManagement.Controllers
                 .Include(o => o.OrderStatus)
                 .Include(o => o.Table)
                 .Include(o => o.Customer)
+                .Where(o => !o.IsDeleted)
                 .AsQueryable();
 
             if (branchId.HasValue) query = query.Where(o => o.BranchId == branchId);
+            if (shiftId.HasValue)  query = query.Where(o => o.ShiftId == shiftId);
+            if (employeeId.HasValue)
+            {
+                var employeeAccountIds = _db.Accounts
+                    .Where(a => a.EmployeeId == employeeId.Value)
+                    .Select(a => a.Id);
+
+                query = query.Where(o => 
+                    (o.WorkShift != null && o.WorkShift.EmployeeId == employeeId.Value) ||
+                    o.StatusHistories.Any(h => h.ChangedBy.HasValue && employeeAccountIds.Contains(h.ChangedBy.Value))
+                );
+            }
             if (!string.IsNullOrEmpty(status))    query = query.Where(o => o.OrderStatus.Name == status.ToUpper());
             if (!string.IsNullOrEmpty(orderType)) query = query.Where(o => o.OrderType == orderType.ToUpper());
             if (fromDate.HasValue) query = query.Where(o => o.CreatedAt >= fromDate);

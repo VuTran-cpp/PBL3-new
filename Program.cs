@@ -222,7 +222,6 @@ app.MapControllerRoute(
 
 // Named page routes (sidebar nav)
 app.MapControllerRoute(name: "dashboard",   pattern: "Dashboard",   defaults: new { controller = "DashboardPage",  action = "Index" });
-app.MapControllerRoute(name: "orders",      pattern: "Orders",      defaults: new { controller = "OrdersMvc",     action = "Index" });
 app.MapControllerRoute(name: "menu",        pattern: "Menu",        defaults: new { controller = "MenuMvc",       action = "Index" });
 app.MapControllerRoute(name: "tables",      pattern: "Tables",      defaults: new { controller = "TablesMvc",     action = "Index" });
 app.MapControllerRoute(name: "shifts",      pattern: "Shifts",      defaults: new { controller = "ShiftsPage",    action = "Index" });
@@ -232,7 +231,6 @@ app.MapControllerRoute(name: "employees",   pattern: "Employees",   defaults: ne
 app.MapControllerRoute(name: "inventory",   pattern: "Inventory",   defaults: new { controller = "InventoryMvc",  action = "Index" });
 app.MapControllerRoute(name: "profile",     pattern: "Profile",     defaults: new { controller = "ProfileMvc",    action = "Index" });
 app.MapControllerRoute(name: "suppliers",   pattern: "Suppliers",   defaults: new { controller = "SuppliersPage", action = "Index" });
-app.MapControllerRoute(name: "orderdetail", pattern: "Orders/{id:long}", defaults: new { controller = "OrderDetailMvc", action = "Index" });
 app.MapControllerRoute(name: "kitchen",     pattern: "Kitchen",     defaults: new { controller = "KitchenMvc",    action = "Index" });
 
 // Public menu (không cần đăng nhập — dành cho khách scan QR của bàn)

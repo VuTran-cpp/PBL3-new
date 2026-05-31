@@ -52,10 +52,20 @@ namespace CafeManagement.Controllers
         [Authorize(Roles = "MANAGER,ADMIN")]
         public async Task<ActionResult<ApiResponse<TableDto>>> CreateTable([FromBody] CreateTableRequest request)
         {
+            var normalizedName = request.Name.Trim().ToLower();
+            var exists = await _db.Tables.AnyAsync(t =>
+                t.BranchId == request.BranchId &&
+                !t.IsDeleted &&
+                t.Name.ToLower() == normalizedName);
+            if (exists)
+            {
+                return BadRequest(new ApiResponse<TableDto>(false, $"Bàn '{request.Name}' đã tồn tại ở chi nhánh này.", null));
+            }
+
             var table = new TableCafe
             {
                 BranchId = request.BranchId,
-                Name     = request.Name,
+                Name     = request.Name.Trim(),
                 Capacity = request.Capacity
             };
             _db.Tables.Add(table);

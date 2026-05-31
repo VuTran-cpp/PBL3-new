@@ -22,18 +22,31 @@ namespace CafeManagement.Controllers
         public DashboardController(CafeDbContext db) => _db = db;
 
         [HttpGet("today/{branchId:int}")]
-        public async Task<ActionResult<ApiResponse<DashboardTodayDto>>> GetToday(int branchId)
+        public async Task<ActionResult<ApiResponse<DashboardTodayDto>>> GetToday(int branchId, [FromQuery] int? employeeId)
         {
             // ✅ FIX: Dùng UtcNow.Date để nhất quán với CreatedAt (lưu UTC trong DB)
             var todayUtc = DateTime.UtcNow.Date;
             var tomorrowUtc = todayUtc.AddDays(1);
 
-            var orders = await _db.Orders
+            var query = _db.Orders
                 .Include(o => o.OrderStatus)
                 .Where(o => o.BranchId == branchId
-                         && o.CreatedAt >= todayUtc
-                         && o.CreatedAt < tomorrowUtc)
-                .ToListAsync();
+                          && o.CreatedAt >= todayUtc
+                          && o.CreatedAt < tomorrowUtc);
+
+            if (employeeId.HasValue)
+            {
+                var employeeAccountIds = _db.Accounts
+                    .Where(a => a.EmployeeId == employeeId.Value)
+                    .Select(a => a.Id);
+
+                query = query.Where(o => 
+                    (o.WorkShift != null && o.WorkShift.EmployeeId == employeeId.Value) ||
+                    o.StatusHistories.Any(h => h.ChangedBy.HasValue && employeeAccountIds.Contains(h.ChangedBy.Value))
+                );
+            }
+
+            var orders = await query.ToListAsync();
 
             var dto = new DashboardTodayDto(
                 branchId,

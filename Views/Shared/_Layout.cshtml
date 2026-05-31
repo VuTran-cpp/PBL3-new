@@ -42,10 +42,6 @@
                 <span class="nav-icon">🖥️</span> POS Bán Hàng
             </a>
 
-            <a href="/Orders" class="nav-link @(ViewBag.ActivePage == "Orders" ? "active" : "")">
-                <span class="nav-icon">📋</span> Lịch sử Đơn hàng
-            </a>
-
             <a href="/Menu" class="nav-link @(ViewBag.ActivePage == "Menu" ? "active" : "")">
                 <span class="nav-icon">☕</span> Thực đơn
             </a>
@@ -85,7 +81,7 @@
 
         <!-- User + Logout -->
         <div class="sb-footer">
-            <a href="/Profile" class="sb-user" style="text-decoration:none;cursor:pointer;transition:background .15s;"
+            <a href="/Profile" class="sb-user" style="text-decoration:none;cursor:pointer;transition:background .15s;padding:6px;border-radius:8px;"
                onmouseenter="this.style.background='rgba(255,255,255,.07)'" onmouseleave="this.style.background=''"
                title="Xem hồ sơ cá nhân">
                 <div class="sb-avatar">
@@ -101,9 +97,10 @@
                     </div>
                     <div class="sb-user-role">@(Context.Session.GetString("Role") ?? "STAFF")</div>
                 </div>
-                <a href="/Login/Logout" title="Đăng xuất"
-                   onclick="event.stopPropagation()"
-                   style="color:rgba(255,255,255,.4);font-size:18px;padding:4px;">🚪</a>
+            </a>
+            <a href="/Login/Logout" class="sb-logout-btn" title="Đăng xuất">
+                <span>🚪</span>
+                <span class="sb-logout-text">Đăng xuất</span>
             </a>
         </div>
     </aside>
@@ -115,7 +112,7 @@
             <div class="topbar-title">@(ViewBag.PageTitle ?? "Hệ thống Quản lý POS")</div>
             <div class="topbar-right">
                 <!-- Shift status badge -->
-                <div id="shift-status-badge" style="display:none;font-size:12px;background:rgba(39,174,96,.1);color:#1D8348;padding:5px 12px;border-radius:20px;border:1px solid rgba(39,174,96,.2);font-weight:600;cursor:default;">
+                <div id="shift-status-badge" style="display:none;font-size:12px;background:rgba(39,174,96,.1);color:#1D8348;padding:5px 12px;border-radius:20px;border:1px solid rgba(39,174,96,.2);font-weight:600;cursor:pointer;" title="Nhấp để đóng ca làm việc" onclick="if(typeof onShiftBadgeClick === 'function') onShiftBadgeClick();">
                     ⏱ Ca #<span id="shift-id-label">—</span>
                     <span id="shift-elapsed" style="opacity:.7;margin-left:4px;"></span>
                 </div>
@@ -160,11 +157,17 @@
 <!-- ── Shared Scripts ──────────────────────────────────────────── -->
 <script src="~/js/api-client.js" asp-append-version="true"></script>
 <script>
-    window.JWT_TOKEN  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Context.Session.GetString("JwtToken") ?? ""));
-    window.BRANCH_ID  = parseInt(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Context.Session.GetString("BranchId") ?? "1"))) || 1;
-    window.EMPLOYEE_ID= parseInt(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Context.Session.GetString("EmployeeId") ?? "0"))) || 0;
-    window.USER_ROLE  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Context.Session.GetString("Role") ?? ""));
-    window.FULL_NAME  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Context.Session.GetString("FullName") ?? ""));
+    var JWT_TOKEN  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Context.Session.GetString("JwtToken") ?? ""));
+    var BRANCH_ID  = parseInt(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Context.Session.GetString("BranchId") ?? "1"))) || 1;
+    var EMPLOYEE_ID= parseInt(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Context.Session.GetString("EmployeeId") ?? "0"))) || 0;
+    var USER_ROLE  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Context.Session.GetString("Role") ?? ""));
+    var FULL_NAME  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Context.Session.GetString("FullName") ?? ""));
+
+    window.JWT_TOKEN   = JWT_TOKEN;
+    window.BRANCH_ID   = BRANCH_ID;
+    window.EMPLOYEE_ID = EMPLOYEE_ID;
+    window.USER_ROLE   = USER_ROLE;
+    window.FULL_NAME   = FULL_NAME;
 
     // ── Dark mode (apply before page paint to avoid FOUC) ────────────────
     (function() {
@@ -186,7 +189,10 @@
     let _shiftTimerRef  = null;
 
     async function loadShiftStatus() {
-        if (!window.JWT_TOKEN) return;
+        if (!window.JWT_TOKEN) {
+            if (typeof window.onShiftLoaded === 'function') window.onShiftLoaded(null);
+            return;
+        }
         try {
             const res  = await fetch(`/api/shifts/current/${window.BRANCH_ID}`, {
                 headers: { 'Authorization': `Bearer ${window.JWT_TOKEN}` }
@@ -201,8 +207,23 @@
                 updateElapsed();
                 clearInterval(_shiftTimerRef);
                 _shiftTimerRef = setInterval(updateElapsed, 60000);
+                if (typeof window.onShiftLoaded === 'function') window.onShiftLoaded(data.id);
+            } else {
+                hideShiftBadge();
+                if (typeof window.onShiftLoaded === 'function') window.onShiftLoaded(null);
             }
-        } catch { /* shift not open */ }
+        } catch {
+            hideShiftBadge();
+            if (typeof window.onShiftLoaded === 'function') window.onShiftLoaded(null);
+        }
+    }
+
+    function hideShiftBadge() {
+        window.CURRENT_SHIFT_ID = null;
+        _shiftStartTime = null;
+        const badge = document.getElementById('shift-status-badge');
+        if (badge) badge.style.display = 'none';
+        clearInterval(_shiftTimerRef);
     }
 
     function updateElapsed() {
@@ -248,7 +269,7 @@
                     items.push({ type: 'warning', icon: '📋',
                         title: `${list.length} đơn hàng chờ xử lý`,
                         text: list.slice(0,3).map(o => `#${o.id} — Bàn ${o.tableName||'TA'}`).join(', ') + (list.length>3?'...':''),
-                        link: '/Orders' });
+                        link: '/Home' });
                 }
             }
         } catch {}

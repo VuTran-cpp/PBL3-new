@@ -84,12 +84,70 @@
                     <th>Tiền kết ca</th>
                     <th>Chênh lệch</th>
                     <th style="text-align:center;">Trạng thái</th>
+                    <th style="text-align:center;">Thao tác</th>
                 </tr>
             </thead>
             <tbody id="shiftHistoryBody">
-                <tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text3);">⏳ Đang tải...</td></tr>
+                <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text3);">⏳ Đang tải...</td></tr>
             </tbody>
         </table>
+</div>
+
+<!-- Daily Shift Statistics -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="card-title">📊 Thống kê ca theo ngày</div>
+        <button class="btn btn-outline btn-sm" onclick="loadDailyShiftStats()">🔄 Làm mới</button>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Ngày</th>
+                    <th style="text-align:center;">Số ca</th>
+                    <th style="text-align:right;">Tổng tiền đầu ca</th>
+                    <th style="text-align:right;">Tổng doanh thu ca</th>
+                    <th style="text-align:right;">Tổng tiền kết ca dự kiến</th>
+                    <th style="text-align:right;">Tổng tiền kết ca thực tế</th>
+                    <th style="text-align:right;">Tổng chênh lệch</th>
+                </tr>
+            </thead>
+            <tbody id="dailyStatsBody">
+                <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text3);">⏳ Đang tải...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Shift Orders Modal -->
+<div class="modal-overlay" id="shiftOrdersModal">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <div class="modal-title" id="shiftOrdersTitle">Danh sách đơn hàng ca làm việc</div>
+            <button class="modal-close" onclick="closeModal('shiftOrdersModal')">×</button>
+        </div>
+        <div class="modal-body" style="padding:20px;">
+            <div class="table-wrap" style="max-height: 400px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mã ĐH</th>
+                            <th>Loại</th>
+                            <th>Bàn</th>
+                            <th>Trạng thái</th>
+                            <th>Thời gian</th>
+                            <th style="text-align:right;">Tổng tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shiftOrdersBody">
+                        <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3);">⏳ Đang tải...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('shiftOrdersModal')">Đóng</button>
+        </div>
     </div>
 </div>
 
@@ -211,11 +269,11 @@ async function closeShift() {
 async function loadShiftHistory() {
     const tbody = document.getElementById('shiftHistoryBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;"><div class="skeleton" style="height:14px;width:300px;margin:auto;border-radius:6px;"></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;"><div class="skeleton" style="height:14px;width:300px;margin:auto;border-radius:6px;"></div></td></tr>';
     try {
         const data = await apiFetch(`/api/shifts/history/${BRANCH_ID}?pageSize=20`);
         if (!data || !data.length) {
-            tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="es-icon">📋</div><div class="es-title">Chưa có lịch sử ca</div></div></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="es-icon">📋</div><div class="es-title">Chưa có lịch sử ca</div></div></td></tr>';
             return;
         }
         tbody.innerHTML = data.map(s => {
@@ -236,15 +294,91 @@ async function loadShiftHistory() {
                         ${s.status === 'OPEN' ? '🟢 Đang mở' : '⭕ Đã đóng'}
                     </span>
                 </td>
+                <td style="text-align:center;">
+                    <button class="btn btn-outline btn-sm" style="font-size:11px;" onclick="showShiftOrders(${s.id})">👁️ Xem đơn</button>
+                </td>
             </tr>`;
         }).join('');
     } catch(e) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px;">❌ ${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px;">❌ ${e.message}</td></tr>`;
+    }
+}
+
+async function showShiftOrders(shiftId) {
+    document.getElementById('shiftOrdersTitle').textContent = `Danh sách đơn hàng - Ca #${shiftId}`;
+    const tbody = document.getElementById('shiftOrdersBody');
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;"><div class="skeleton" style="height:14px;width:200px;margin:auto;border-radius:6px;"></div></td></tr>';
+    document.getElementById('shiftOrdersModal').classList.add('active');
+
+    try {
+        const res = await apiFetch(`/api/orders?branchId=${BRANCH_ID}&shiftId=${shiftId}&pageSize=100`);
+        const items = res?.items || [];
+        if (items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3);font-style:italic;">Không có đơn hàng nào trong ca này</td></tr>';
+            return;
+        }
+        const STATUS_MAP = {
+            PENDING: { label:'Chờ xử lý', badge:'badge-amber' },
+            COOKING: { label:'Đang làm', badge:'badge-blue' },
+            SERVED:  { label:'Đã phục vụ', badge:'badge-purple' },
+            COMPLETED:{ label:'Hoàn thành', badge:'badge-green' },
+            CANCELLED:{ label:'Đã hủy', badge:'badge-red' }
+        };
+        tbody.innerHTML = items.map(o => {
+            const st = STATUS_MAP[o.orderStatus] || { label: o.orderStatus, badge:'badge-gray' };
+            return `<tr>
+                <td><span style="font-weight:700;color:var(--brown-dark);">#${o.id}</span></td>
+                <td><span class="badge ${o.orderType==='DINE_IN'?'badge-brown':'badge-blue'}">${o.orderType==='DINE_IN'?'Tại bàn':'Mang về'}</span></td>
+                <td>${o.tableName || '<span style="color:var(--text3)">—</span>'}</td>
+                <td><span class="badge ${st.badge}">${st.label}</span></td>
+                <td style="font-size:12px;color:var(--text3);">${formatDateTime(o.createdAt)}</td>
+                <td style="text-align:right;font-weight:700;color:var(--red);">${formatVND(o.finalAmount)}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);padding:20px;">❌ Lỗi: ${e.message}</td></tr>`;
+    }
+}
+
+async function loadDailyShiftStats() {
+    const tbody = document.getElementById('dailyStatsBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;"><div class="skeleton" style="height:14px;width:300px;margin:auto;border-radius:6px;"></div></td></tr>';
+    try {
+        const res = await apiFetch(`/api/shifts/daily-stats/${BRANCH_ID}`);
+        if (!res || !res.length) {
+            tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="es-icon">📊</div><div class="es-title">Chưa có dữ liệu thống kê</div></div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = res.map(s => {
+            const diff = s.totalDifference ?? 0;
+            const diffColor = diff >= 0 ? 'var(--green)' : 'var(--red)';
+            const diffSign  = diff > 0 ? '+' : '';
+            
+            const parts = s.date.split('-');
+            const formattedDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : s.date;
+
+            return `<tr>
+                <td style="font-weight:700;color:var(--brown-dark);">${formattedDate}</td>
+                <td style="text-align:center;font-weight:600;">${s.shiftCount}</td>
+                <td style="text-align:right;font-weight:600;">${formatVND(s.totalStartingCash)}</td>
+                <td style="text-align:right;font-weight:700;color:var(--green);">${formatVND(s.totalRevenue)}</td>
+                <td style="text-align:right;font-weight:600;">${formatVND(s.totalExpectedCash)}</td>
+                <td style="text-align:right;font-weight:600;">${formatVND(s.totalActualEndingCash)}</td>
+                <td style="text-align:right;font-weight:700;color:${diffColor};">${diffSign}${formatVND(diff)}</td>
+            </tr>`;
+        }).join('');
+    } catch(e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">❌ Lỗi: ${e.message}</td></tr>`;
     }
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
-document.addEventListener('DOMContentLoaded', () => { loadShift(); loadShiftHistory(); });
+document.addEventListener('DOMContentLoaded', () => { 
+    loadShift(); 
+    loadShiftHistory(); 
+    loadDailyShiftStats(); 
+});
 </script>
 }

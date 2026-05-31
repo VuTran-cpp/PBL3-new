@@ -143,3 +143,5 @@ D:\CafeManagement\obj\Debug\net8.0\refint\CafeManagement.dll
 D:\CafeManagement\obj\Debug\net8.0\CafeManagement.pdb
 D:\CafeManagement\obj\Debug\net8.0\CafeManagement.genruntimeconfig.cache
 D:\CafeManagement\obj\Debug\net8.0\ref\CafeManagement.dll
+D:\CafeManagement\obj\Debug\net8.0\CafeManagement.sourcelink.json
+D:\CafeManagement\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt

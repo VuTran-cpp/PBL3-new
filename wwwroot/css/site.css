@@ -149,6 +149,9 @@ input, select, textarea { font-family: inherit; }
 .sb-footer {
     padding: 16px 20px;
     border-top: 1px solid rgba(255,255,255,.07);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 .sb-user { display: flex; align-items: center; gap: 10px; }
 .sb-avatar {
@@ -159,6 +162,28 @@ input, select, textarea { font-family: inherit; }
 }
 .sb-user-name { font-size: 13px; color: rgba(255,255,255,.8); font-weight: 600; }
 .sb-user-role { font-size: 11px; color: rgba(255,255,255,.4); }
+
+.sb-logout-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(231, 76, 60, 0.12);
+    color: #E74C3C;
+    border: 1px solid rgba(231, 76, 60, 0.25);
+    border-radius: 8px;
+    padding: 10px 14px;
+    text-decoration: none;
+    font-size: 13.5px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+.sb-logout-btn:hover {
+    background: #E74C3C;
+    color: #fff;
+    border-color: #E74C3C;
+}
 
 /* ── Main Area ───────────────────────────────────────────────────────── */
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
@@ -520,6 +545,8 @@ select.form-control { cursor: pointer; }
 .pos-cart {
     background: var(--surface); display: flex; flex-direction: column;
     border-left: 1px solid var(--border);
+    height: 100%;
+    overflow: hidden;
 }
 .panel-header {
     padding: 16px 18px; border-bottom: 1px solid var(--border);
@@ -607,13 +634,14 @@ select.form-control { cursor: pointer; }
 /* ── Responsive ───────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
     .sidebar { width: 64px; min-width: 64px; }
-    .sb-name, .sb-sub, .sb-section-label, .nav-link span:not(.nav-icon), .sb-user-name, .sb-user-role { display: none; }
+    .sb-name, .sb-sub, .sb-section-label, .nav-link span:not(.nav-icon), .sb-user-name, .sb-user-role, .sb-logout-text { display: none; }
     .nav-link { padding: 12px; justify-content: center; }
     .nav-link .nav-icon { width: auto; }
     .sb-brand { justify-content: center; }
     .sb-logo  { padding: 12px; }
     .sb-footer { padding: 12px; justify-content: center; }
     .sb-user  { justify-content: center; }
+    .sb-logout-btn { padding: 10px; width: 40px; height: 40px; margin: 0 auto; }
 }
 
 @media (max-width: 640px) {
