@@ -448,6 +448,91 @@ select.form-control { cursor: pointer; }
 .page-btn.active { background: var(--brown-dark); border-color: var(--brown-dark); color: #fff; }
 .page-btn:disabled { opacity: .4; cursor: not-allowed; }
 
+/* ── Area Filter Tabs ─────────────────────────────────────────────────── */
+.area-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.area-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border-radius: 50px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text2);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--t);
+    white-space: nowrap;
+    font-family: inherit;
+    box-shadow: var(--shadow-sm);
+}
+
+.area-tab:hover {
+    background: var(--surface2);
+    border-color: var(--border2);
+    color: var(--text);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+.area-tab.active {
+    background: var(--brown-dark);
+    border-color: var(--brown-dark);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(61,31,13,.25);
+}
+
+.area-tab-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+/* Nút Mang về — màu amber đặc trưng */
+.area-tab-takeaway {
+    border-color: rgba(230,126,34,.35);
+    background: rgba(230,126,34,.06);
+    color: var(--amber);
+}
+.area-tab-takeaway:hover {
+    background: rgba(230,126,34,.14);
+    border-color: var(--amber);
+    color: var(--amber);
+}
+.area-tab-takeaway.active {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(230,126,34,.3);
+}
+
+/* Đường phân cách giữa nhóm bàn và Mang về */
+.area-tab-divider {
+    width: 1px;
+    height: 28px;
+    background: var(--border2);
+    margin: 0 4px;
+    flex-shrink: 0;
+}
+
+/* Thanh tóm tắt trạng thái bàn */
+.table-area-summary {
+    font-size: 12.5px;
+    padding: 6px 14px;
+    background: var(--surface2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 14px;
+    display: inline-block;
+}
+
 /* ── POS Layout ───────────────────────────────────────────────────────── */
 .table-grid {
     display: grid;
@@ -465,6 +550,61 @@ select.form-control { cursor: pointer; }
 .tc.occupied { border-color: var(--green); background: rgba(39,174,96,.06); }
 .tc.cleaning { border-color: var(--amber); background: rgba(230,126,34,.06); }
 .tc.drag-over { border-color: var(--blue); background: rgba(41,128,185,.08); transform: scale(1.04); }
+/* ── Takeaway slot cards (MV-1…MV-5) ─────────────────────────────────── */
+.tc-takeaway {
+    border-color: rgba(230,126,34,.4);
+    background: rgba(230,126,34,.05);
+    border-style: dashed;
+}
+.tc-takeaway:hover {
+    border-color: var(--amber);
+    background: rgba(230,126,34,.1);
+}
+.tc-takeaway .tc-takeaway-label {
+    color: var(--amber);
+}
+.tc-takeaway .tc-takeaway-num {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--amber);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.tv-bag-icon {
+    font-size: 18px;
+}
+/* Slot đang có đơn — viền solid, nền cam đậm hơn */
+.tc-takeaway-busy {
+    border-style: solid;
+    border-color: var(--amber) !important;
+    background: rgba(230,126,34,.14) !important;
+}
+.tc-takeaway-busy .tc-takeaway-label {
+    color: #D35400;
+    font-weight: 800;
+}
+.tc-takeaway-busy .tc-takeaway-num {
+    color: #D35400;
+}
+/* Badge số trên tab Mang về */
+.area-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--red);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    padding: 0 4px;
+    line-height: 1;
+    margin-left: 2px;
+}
+
 .tc-status {
     font-size: 10px; font-weight: 700; letter-spacing: .8px;
     text-transform: uppercase; margin-bottom: 8px; color: var(--text3);
@@ -604,6 +744,109 @@ select.form-control { cursor: pointer; }
 
 /* ── Payment modal z-index (above side-panel) ─────────────────────────── */
 #payModalOverlay { z-index: 2500; }
+
+/* ── Label / Tem in ───────────────────────────────────────────────────── */
+.label-card {
+    width: 200px;
+    min-height: 130px;
+    background: var(--surface);
+    border: 2px dashed var(--brown-light);
+    border-radius: var(--r-lg);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    transition: var(--t);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+.label-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--brown-dark), var(--brown-light), var(--amber));
+}
+.label-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.label-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.label-seq {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text3);
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 2px 7px;
+    letter-spacing: .5px;
+}
+.label-table-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(61,31,13,.1);
+    color: var(--brown-dark);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(61,31,13,.15);
+}
+.label-takeaway-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(230,126,34,.12);
+    color: var(--amber);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(230,126,34,.25);
+}
+.label-cup-badge {
+    margin-left: auto;
+    background: var(--brown-dark);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+.label-item-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--brown-dark);
+    line-height: 1.3;
+    margin-top: 2px;
+}
+.label-note {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--red);
+    background: rgba(231,76,60,.07);
+    border-radius: 6px;
+    padding: 4px 8px;
+    border-left: 3px solid var(--red);
+    line-height: 1.4;
+    flex: 1;
+}
+.label-note.no-note { color: var(--text4); background: none; border-left-color: var(--border); font-style: italic; }
+.label-footer {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text3);
+    border-top: 1px dashed var(--border);
+    padding-top: 6px;
+    font-weight: 500;
+}
+body.dark-theme .label-card { background: var(--surface2); border-color: var(--border2); }
 
 /* ── Print Styles ─────────────────────────────────────────────────────── */
 @media print {

@@ -66,7 +66,7 @@ namespace CafeManagement.Controllers
                     o.TableId,
                     o.Table    != null ? o.Table.Name    : null,
                     o.Customer != null ? o.Customer.FullName : null,
-                    o.FinalAmount, o.CreatedAt))
+                    o.FinalAmount, o.CreatedAt, o.Note))
                 .ToListAsync();
 
             return Ok(new ApiResponse<PagedResult<OrderSummaryDto>>(

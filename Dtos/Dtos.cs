@@ -98,6 +98,7 @@ namespace CafeManagement.DTOs
 
     public record OpenShiftRequest(int BranchId, int EmployeeId, decimal StartingCash);
     public record CloseShiftRequest(decimal ActualEndingCash, string? Note);
+    public record EmployeeRevenueBreakdownDto(int EmployeeId, string EmployeeName, int OrderCount, decimal TotalRevenue, decimal CashRevenue, decimal TransferRevenue);
 
     public record DailyShiftStatDto(
         string Date,
@@ -125,7 +126,7 @@ namespace CafeManagement.DTOs
     public record OrderSummaryDto(
         long Id, string OrderType, string OrderStatus,
         int? TableId, string? TableName, string? CustomerName,
-        decimal FinalAmount, DateTime CreatedAt);
+        decimal FinalAmount, DateTime CreatedAt, string? Note = null);
 
     public record CreateOrderRequest(
         int BranchId, long ShiftId, int? CustomerId,

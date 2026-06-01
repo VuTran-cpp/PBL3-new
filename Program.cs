@@ -181,6 +181,47 @@ using (var scope = app.Services.CreateScope())
             await db.SaveChangesAsync();
         }
 
+        // Seed default tables for Tầng 1, Tầng 2, Ban công if not already populated
+        var tableBranch = await db.Branches.FirstOrDefaultAsync();
+        if (tableBranch != null)
+        {
+            var existingTables = await db.Tables.ToListAsync();
+            // Rename any generic old tables to T1 (Tầng 1) to match area filtering
+            foreach (var tbl in existingTables)
+            {
+                if (tbl.Name == "Bàn 1") tbl.Name = "T1 - Bàn 1";
+                else if (tbl.Name == "Bàn 2") tbl.Name = "T1 - Bàn 2";
+                else if (tbl.Name == "Bàn 3") tbl.Name = "T1 - Bàn 3";
+                else if (tbl.Name == "Bàn 4") tbl.Name = "T1 - Bàn 4";
+                else if (tbl.Name == "Bàn 5") tbl.Name = "T1 - Bàn 5";
+                else if (tbl.Name == "Bàn 6") tbl.Name = "T1 - Bàn 6";
+                else if (tbl.Name == "Bàn 7") tbl.Name = "T1 - Bàn 7";
+                else if (tbl.Name == "Bàn 8") tbl.Name = "T1 - Bàn 8";
+            }
+
+            // Add Tầng 2 tables: T2 - Bàn 1 to T2 - Bàn 6
+            for (int i = 1; i <= 6; i++)
+            {
+                var name = $"T2 - Bàn {i}";
+                if (!existingTables.Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    db.Tables.Add(new CafeManagement.Models.TableCafe { BranchId = tableBranch.Id, Name = name, Capacity = 4, Status = "EMPTY" });
+                }
+            }
+
+            // Add Ban công tables: BC - Bàn 1 to BC - Bàn 4
+            for (int i = 1; i <= 4; i++)
+            {
+                var name = $"BC - Bàn {i}";
+                if (!existingTables.Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    db.Tables.Add(new CafeManagement.Models.TableCafe { BranchId = tableBranch.Id, Name = name, Capacity = 2, Status = "EMPTY" });
+                }
+            }
+
+            await db.SaveChangesAsync();
+        }
+
         app.Logger.LogInformation("✅ Database seed completed");
     }
     catch (Exception ex)

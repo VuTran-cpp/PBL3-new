@@ -71,6 +71,7 @@ namespace CafeManagement.Controllers
         public IActionResult Index()
         {
             if (!IsAuthenticated()) return RequireAuth();
+            var mgr = RequireManager(); if (mgr != null) return mgr;
             ViewBag.ActivePage = "Tables";
             ViewBag.PageTitle  = "Quản lý Bàn";
             return View("~/Views/Tables/Index.cshtml");

@@ -36,5 +36,17 @@ namespace CafeManagement.Controllers
 
             return View(tables);
         }
+
+        // GET /Home/PrintHistory
+        public IActionResult PrintHistory()
+        {
+            var token = HttpContext.Session.GetString("JwtToken");
+            if (string.IsNullOrEmpty(token))
+                return Redirect("/Login");
+
+            ViewBag.ActivePage = "PrintHistory";
+            ViewBag.PageTitle  = "Lịch sử in tem";
+            return View();
+        }
     }
 }

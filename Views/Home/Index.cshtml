@@ -5,6 +5,68 @@
     var jwtToken = ViewBag.JwtToken ?? "";
 }
 
+@section Styles {
+<style>
+/* ── IN TEM: chỉ in div#labelPrintArea ─────────────────────── */
+@@media print {
+    body > * { display: none !important; }
+    #labelPrintArea {
+        display: flex !important;
+        flex-wrap: wrap;
+        gap: 0;
+        padding: 0;
+        margin: 0;
+        background: #fff;
+    }
+    .label-card {
+        width: 80mm;
+        min-height: 50mm;
+        border: 1.5px dashed #555;
+        border-radius: 0;
+        padding: 8px 10px;
+        page-break-inside: avoid;
+        font-family: 'Courier New', monospace;
+        color: #000;
+        background: #fff;
+        box-shadow: none;
+    }
+    .label-card * { color: #000 !important; }
+    .label-no-print { display: none !important; }
+}
+</style>
+}
+
+<!-- Thanh lọc khu vực -->
+<div class="area-filter-bar" id="areaFilterBar">
+    <button class="area-tab active" id="area-all" onclick="switchArea('all', this)">
+        <span class="area-tab-icon">🏠</span>
+        <span>Tất cả</span>
+    </button>
+    <button class="area-tab" id="area-tang1" onclick="switchArea('tang1', this)">
+        <span class="area-tab-icon">1️⃣</span>
+        <span>Tầng 1</span>
+    </button>
+    <button class="area-tab" id="area-tang2" onclick="switchArea('tang2', this)">
+        <span class="area-tab-icon">2️⃣</span>
+        <span>Tầng 2</span>
+    </button>
+    <button class="area-tab" id="area-bancong" onclick="switchArea('bancong', this)">
+        <span class="area-tab-icon">🌿</span>
+        <span>Ban công</span>
+    </button>
+    <div class="area-tab-divider"></div>
+    <button class="area-tab area-tab-takeaway" id="area-takeaway" onclick="switchArea('takeaway', this)">
+        <span class="area-tab-icon">🛍️</span>
+        <span>Mang về</span>
+        <span class="area-tab-badge" id="takenAwayBadge" style="display:none;">0</span>
+    </button>
+</div>
+
+<!-- Counter bàn -->
+<div class="table-area-summary" id="tableAreaSummary">
+    <span id="areaSummaryText">Đang tải...</span>
+</div>
+
 <div class="table-grid" id="tableGrid">
     @foreach (var table in Model)
     {
@@ -39,7 +101,27 @@
             </div>
         </div>
     }
+
+    <!-- Slot Mang về: MV-1 → MV-5 -->
+    @for (int mv = 1; mv <= 5; mv++)
+    {
+        <div class="tc tc-takeaway"
+             id="takeaway-slot-@mv"
+             data-area="takeaway"
+             onclick="openTakeaway(@mv)">
+            <div class="tc-status tc-takeaway-label">Mang về</div>
+            <div class="tc-name tc-takeaway-num">
+                <span class="tv-bag-icon">🛍️</span> MV-@mv
+            </div>
+            <div class="tc-info">
+                <span>Đơn mang về #@mv</span>
+                <div class="tc-total" id="total-takeaway-@mv" style="display:none;"></div>
+            </div>
+        </div>
+    }
 </div>
+
+<!-- (trước kia là card ảo, đã bỏ) -->
 
 <!-- Overlay & Side Panel (POS) -->
 <div id="overlay" class="overlay" onclick="closeOrder()"></div>
@@ -182,6 +264,44 @@
     <button onclick="closeReceipt()" style="width:100%;margin-top:6px;padding:8px;background:#000;color:#fff;border:none;cursor:pointer;border-radius:6px;font-size:13px;">Đóng</button>
 </div>
 
+<!-- Label Print Modal -->
+<div class="modal-overlay" id="labelModalOverlay" style="z-index:3500;align-items:flex-start;padding-top:20px;">
+    <div class="modal modal-lg" style="max-width:860px;max-height:90vh;">
+        <div class="modal-header" style="background:var(--brown-dark);color:#fff;border-radius:var(--r-xl) var(--r-xl) 0 0;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:22px;">🏷️</span>
+                <div>
+                    <div class="modal-title" style="color:#fff;font-size:16px;">In Tem Gọi Đồ</div>
+                    <div style="font-size:11px;opacity:.7;margin-top:1px;">Mỗi tem tương ứng 1 ly — Dán vào cốc để phân biệt</div>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span id="labelTotalCount" class="badge badge-amber" style="font-size:12px;padding:4px 12px;"></span>
+                <button class="modal-close" style="background:rgba(255,255,255,.15);color:#fff;" onclick="closeLabelModal()">×</button>
+            </div>
+        </div>
+        <div class="modal-body" style="padding:16px;background:var(--surface2);">
+            <!-- Controls -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;" class="label-no-print">
+                <div style="font-size:13px;color:var(--text3);">
+                    Ảnh hưởng: <strong style="color:var(--text);">Order #<span id="labelOrderId">—</span></strong>
+                    &ensp;·&ensp; <strong style="color:var(--brown-dark);"><span id="labelTableName">—</span></strong>
+                    &ensp;·&ensp; <span id="labelDateTime" style="color:var(--text3);"></span>
+                </div>
+                <button onclick="window.print()" class="btn btn-primary" style="gap:8px;">
+                    🖨️ In tất cả tem
+                </button>
+            </div>
+            <!-- Label grid -->
+            <div id="labelPrintArea" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
+        </div>
+        <div class="modal-footer" style="background:var(--surface);" class="label-no-print">
+            <button class="btn btn-outline" onclick="closeLabelModal()">✖ Đóng</button>
+            <button class="btn btn-primary" onclick="window.print()">🖨️ In tem</button>
+        </div>
+    </div>
+</div>
+
 <!-- POS Open Shift Modal -->
 <div class="modal-overlay" id="posOpenShiftModal">
     <div class="modal" style="max-width:400px;">
@@ -254,6 +374,9 @@
     let currentPromoCode    = null;
     let currentCustomerId   = null;
     let currentCustomerName = '';
+    let currentOrderType    = 'DINE_IN';   // 'DINE_IN' hoặc 'TAKE_AWAY'
+    let currentAreaFilter   = 'all';       // 'all' | 'tang1' | 'tang2' | 'bancong' | 'takeaway'
+    let currentTakeawaySlot = null;        // số slot MV-1..MV-5 đang mở
 
 
     // ════════════════════════════════════════════════════════
@@ -286,8 +409,177 @@
             showToast('❌ Lỗi tải dữ liệu: ' + err.message);
         }
 
-        // 5. Load tổng tiền cho các bàn đang có khách
-        loadOccupiedTableTotals();
+        // 5. Load tổng tiền và trạng thái cho bàn và slot mang về hoạt động
+        loadActiveOrdersState();
+
+        // 6. Cập nhật tóm tắt khu vực
+        updateAreaSummary();
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  LỌC KHU VỰC BÀN
+    // ════════════════════════════════════════════════════════
+    // Bản đồ khu vực → từ khóa xuất hiện trong tên bàn
+    const AREA_KEYWORDS = {
+        'tang1':   ['t1', 'tầng 1', 'tang1', 'floor1', 'f1'],
+        'tang2':   ['t2', 'tầng 2', 'tang2', 'floor2', 'f2'],
+        'bancong': ['bc', 'ban công', 'bancong', 'balcony', 'ban cong'],
+    };
+
+    function tableMatchesArea(tableName, area) {
+        if (area === 'all') return true;
+        const name = tableName.toLowerCase();
+        const keywords = AREA_KEYWORDS[area] || [];
+        return keywords.some(kw => name.includes(kw));
+    }
+
+    function switchArea(area, el) {
+        currentAreaFilter = area;
+        document.querySelectorAll('.area-tab').forEach(t => t.classList.remove('active'));
+        if (el) el.classList.add('active');
+
+        const allCards = document.querySelectorAll('#tableGrid .tc');
+
+        if (area === 'takeaway') {
+            // Chỉ hiện các slot Mang về
+            allCards.forEach(card => {
+                card.style.display = card.dataset.area === 'takeaway' ? '' : 'none';
+            });
+        } else {
+            // Ẩn slot Mang về, lọc bàn thường theo khu vực
+            allCards.forEach(card => {
+                if (card.dataset.area === 'takeaway') {
+                    card.style.display = 'none';
+                } else {
+                    const nameEl = card.querySelector('.tc-name');
+                    const name = nameEl ? nameEl.innerText : '';
+                    card.style.display = tableMatchesArea(name, area) ? '' : 'none';
+                }
+            });
+        }
+
+        updateAreaSummary();
+    }
+
+    function updateAreaSummary() {
+        const allCards = document.querySelectorAll('#tableGrid .tc');
+        let visible = 0, occupied = 0, taOccupied = 0, taTotal = 0;
+
+        allCards.forEach(card => {
+            if (card.style.display === 'none') return;
+            if (card.dataset.area === 'takeaway') {
+                taTotal++;
+                if (card.classList.contains('tc-takeaway-busy')) taOccupied++;
+            } else {
+                visible++;
+                if (card.classList.contains('occupied')) occupied++;
+            }
+        });
+
+        const summaryEl = document.getElementById('areaSummaryText');
+        if (!summaryEl) return;
+
+        if (currentAreaFilter === 'takeaway') {
+            const taFree = taTotal - taOccupied;
+            summaryEl.innerHTML =
+                `<span style="color:var(--text3)">Slot mang về: <strong style="color:var(--text)">${taTotal}</strong></span>` +
+                `&ensp;&middot;&ensp;<span style="color:var(--green)">✅ ${taFree} rảnh</span>` +
+                `&ensp;&middot;&ensp;<span style="color:var(--amber)">🛍️ ${taOccupied} đang xử lý</span>`;
+
+            // Cập nhật badge trên tab
+            const badge = document.getElementById('takenAwayBadge');
+            if (badge) {
+                badge.textContent = taOccupied;
+                badge.style.display = taOccupied > 0 ? 'inline-flex' : 'none';
+            }
+        } else {
+            const empty = visible - occupied;
+            summaryEl.innerHTML =
+                `<span style="color:var(--text3)">Hiển thị <strong style="color:var(--text)">${visible}</strong> bàn</span>` +
+                `&ensp;&middot;&ensp;<span style="color:var(--green)">✅ ${empty} trống</span>` +
+                `&ensp;&middot;&ensp;<span style="color:var(--red)">🔴 ${occupied} có khách</span>`;
+
+            // Cập nhật badge slot MV đang bận (luôn đếm dù đang ở tab nào)
+            const allTA = document.querySelectorAll('#tableGrid .tc[data-area="takeaway"]');
+            let busyTA = 0;
+            allTA.forEach(c => { if (c.classList.contains('tc-takeaway-busy')) busyTA++; });
+            const badge = document.getElementById('takenAwayBadge');
+            if (badge) {
+                badge.textContent = busyTA;
+                badge.style.display = busyTA > 0 ? 'inline-flex' : 'none';
+            }
+        }
+    }
+
+    // ── Mở đơn MANG VỀ theo slot số (MV-1..MV-5) ────────────────
+    async function openTakeaway(slotNum) {
+        currentOrderType     = 'TAKE_AWAY';
+        currentTakeawaySlot  = slotNum || 1;
+        currentTableId       = null;
+        currentTableName     = `Mang về #MV-${currentTakeawaySlot}`;
+        currentCart          = [];
+        currentOrderId       = null;
+
+        document.getElementById('panelTableName').innerText  = `🛍️ MV-${currentTakeawaySlot}`;
+        document.getElementById('panelTableStatus').innerText = `Đơn mang về — slot #${currentTakeawaySlot}`;
+        document.getElementById('orderPanel').classList.add('active');
+        document.getElementById('overlay').classList.add('active');
+        document.getElementById('searchInput').value = '';
+        currentSearchFilter = '';
+
+        currentCategoryFilter = 'all';
+        document.querySelectorAll('.cat-item').forEach(c => c.classList.remove('active'));
+        document.getElementById('cat-all')?.classList.add('active');
+
+        const btnServed = document.getElementById('btnServed');
+        const btnCancel = document.getElementById('btnCancel');
+        if (btnServed) btnServed.style.display = 'none';
+        if (btnCancel) btnCancel.style.display = 'none';
+
+        renderSkeleton();
+
+        try {
+            const slotEl = document.getElementById(`takeaway-slot-${slotNum}`);
+            const isBusy = slotEl && slotEl.classList.contains('tc-takeaway-busy');
+
+            if (isBusy) {
+                let existing = null;
+                for (const st of ['COOKING', 'PENDING', 'SERVED']) {
+                    const orders = await apiFetch(`/api/orders?branchId=${BRANCH_ID}&status=${st}&pageSize=100`);
+                    existing = orders?.items?.find(o => 
+                        o.orderType === 'TAKE_AWAY' && 
+                        o.note && 
+                        o.note.includes(`MV-${slotNum}`)
+                    );
+                    if (existing) break;
+                }
+
+                if (existing) {
+                    currentOrderId = existing.id;
+                    const orderDetail = await apiFetch(`/api/orders/${currentOrderId}`);
+                    currentCart = orderDetail.items.map(oi => ({
+                        id: oi.menuItemId,
+                        name: oi.itemName,
+                        price: oi.unitPrice,
+                        qty: oi.quantity,
+                        note: oi.note || '',
+                        orderItemId: oi.id,
+                        savedQty: oi.quantity // lưu số lượng ban đầu để chặn bớt/xóa
+                    }));
+                    document.getElementById('panelTableStatus').innerText = `Order #${currentOrderId} — ${existing.orderStatus}`;
+
+                    if (btnServed) btnServed.style.display = '';
+                    if (btnCancel) {
+                        btnCancel.style.display = (window.USER_ROLE === 'MANAGER' || window.USER_ROLE === 'ADMIN') ? '' : 'none';
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn('Load existing takeaway order failed:', err);
+        }
+
+        renderItems();
+        renderCart();
     }
 
     // ── SHIFT MANAGEMENT FUNCTIONS ON POS ──────────────────
@@ -436,6 +728,18 @@
         const note = document.getElementById('posCloseNote').value;
         
         try {
+            // Check for active orders in the shift
+            const res = await apiFetch(`/api/orders?branchId=${BRANCH_ID}&shiftId=${currentShiftId}&pageSize=100`);
+            const items = res?.items || [];
+            const activeOrders = items.filter(o => o.orderStatus !== 'COMPLETED' && o.orderStatus !== 'CANCELLED');
+            if (activeOrders.length > 0) {
+                const activeIds = activeOrders.map(o => `#${o.id}`).join(', ');
+                const confirmMsg = `⚠️ Cảnh báo: Ca hiện tại đang có ${activeOrders.length} đơn hàng chưa thanh toán hoặc chưa hủy (${activeIds}). Bạn có chắc chắn muốn kết ca?`;
+                if (!confirm(confirmMsg)) {
+                    return;
+                }
+            }
+
             showToast('⏳ Đang đóng ca...', 'info');
             await apiFetch(`/api/shifts/${currentShiftId}/close`, {
                 method: 'POST',
@@ -468,23 +772,32 @@
     window.onShiftBadgeClick = onShiftBadgeClick;
 
     // Load tổng tiền cho bàn đang occupied
-    async function loadOccupiedTableTotals() {
+    async function loadActiveOrdersState() {
         try {
-            const orders = await apiFetch(
-                `/api/orders?branchId=${BRANCH_ID}&status=COOKING&pageSize=100`
-            );
-            if (orders?.items) {
-                for (const order of orders.items) {
-                    if (order.tableId) {
-                        const totalEl = document.getElementById(`total-table-${order.tableId}`);
-                        if (totalEl) {
-                            totalEl.innerText = order.finalAmount.toLocaleString('vi-VN') + 'đ';
+            // Reset tất cả các slot mang về trước khi load
+            for (let mv = 1; mv <= 5; mv++) {
+                updateTakeawaySlotUI(mv, false, 0);
+            }
+
+            // Lấy tất cả đơn hàng ở trạng thái PENDING, COOKING, SERVED
+            const activeStatuses = ['PENDING', 'COOKING', 'SERVED'];
+            for (const status of activeStatuses) {
+                const res = await apiFetch(`/api/orders?branchId=${BRANCH_ID}&status=${status}&pageSize=100`);
+                const orders = res?.items || [];
+                for (const order of orders) {
+                    if (order.orderType === 'DINE_IN' && order.tableId) {
+                        updateTableUI(order.tableId, 'occupied', order.finalAmount);
+                    } else if (order.orderType === 'TAKE_AWAY' && order.note) {
+                        const match = order.note.match(/MV-(\d+)/);
+                        if (match) {
+                            const slotNum = parseInt(match[1]);
+                            updateTakeawaySlotUI(slotNum, true, order.finalAmount);
                         }
                     }
                 }
             }
-        } catch {
-            // Không cần hiện lỗi nếu fail
+        } catch (err) {
+            console.warn('Error loading active orders state:', err);
         }
     }
 
@@ -566,6 +879,10 @@
     //  MỞ PANEL ORDER
     // ════════════════════════════════════════════════════════
     async function openOrder(tableId, tableName, status) {
+        const tableEl = document.getElementById(`table-${tableId}`);
+        const realStatus = tableEl ? (tableEl.classList.contains('occupied') ? 'occupied' : tableEl.classList.contains('cleaning') ? 'cleaning' : 'empty') : status;
+
+        currentOrderType = 'DINE_IN';    // reset về dine-in khi click bàn
         currentTableId   = tableId;
         currentTableName = tableName;
         currentCart      = [];
@@ -573,7 +890,7 @@
 
         document.getElementById('panelTableName').innerText = tableName;
         document.getElementById('panelTableStatus').innerText =
-            status === 'occupied' ? 'Đang có khách' : 'Bàn trống';
+            realStatus === 'occupied' ? 'Đang có khách' : 'Bàn trống';
         document.getElementById('orderPanel').classList.add('active');
         document.getElementById('overlay').classList.add('active');
         document.getElementById('searchInput').value = '';
@@ -584,15 +901,26 @@
         document.querySelectorAll('.cat-item').forEach(c => c.classList.remove('active'));
         document.getElementById('cat-all')?.classList.add('active');
 
+        // Mặc định ẩn nút Đã Phục Vụ / Hủy Đơn
+        const btnServed = document.getElementById('btnServed');
+        const btnCancel = document.getElementById('btnCancel');
+        if (btnServed) btnServed.style.display = 'none';
+        if (btnCancel) btnCancel.style.display = 'none';
+
         renderSkeleton();
 
         try {
-            if (status === 'occupied') {
-                // Tìm order IN_PROGRESS của bàn này
-                const orders = await apiFetch(
-                    `/api/orders?branchId=${BRANCH_ID}&status=COOKING&pageSize=100`
-                );
-                const existing = orders?.items?.find(o => o.tableId == tableId);
+            if (realStatus === 'occupied') {
+                // ✅ FIX: Tìm order ở TẤT CẢ trạng thái đang hoạt động (PENDING, COOKING, SERVED)
+                let existing = null;
+                for (const st of ['COOKING', 'PENDING', 'SERVED']) {
+                    const orders = await apiFetch(
+                        `/api/orders?branchId=${BRANCH_ID}&status=${st}&pageSize=100`
+                    );
+                    existing = orders?.items?.find(o => o.tableId == tableId);
+                    if (existing) break;
+                }
+
                 if (existing) {
                     currentOrderId = existing.id;
                     // Load chi tiết order để lấy items
@@ -604,9 +932,16 @@
                         price: oi.unitPrice,
                         qty: oi.quantity,
                         note: oi.note || '',
-                        orderItemId: oi.id
+                        orderItemId: oi.id,
+                        savedQty: oi.quantity // lưu số lượng ban đầu để chặn bớt/xóa
                     }));
-                    document.getElementById('panelTableStatus').innerText = `Order #${currentOrderId}`;
+                    document.getElementById('panelTableStatus').innerText = `Order #${currentOrderId} — ${existing.orderStatus}`;
+
+                    // ✅ FIX: Hiện nút Đã Phục Vụ / Hủy Đơn khi có đơn hàng đang hoạt động
+                    if (btnServed) btnServed.style.display = '';
+                    if (btnCancel) {
+                        btnCancel.style.display = (window.USER_ROLE === 'MANAGER' || window.USER_ROLE === 'ADMIN') ? '' : 'none';
+                    }
                 }
             }
         } catch (err) {
@@ -656,7 +991,8 @@
         const item = allMenuItems.find(i => i.id === menuItemId);
         if (!item) return;
 
-        const exist = currentCart.find(i => i.id === menuItemId);
+        // CHỈ cộng dồn vào món CHƯA được lưu dưới DB (không có orderItemId)
+        const exist = currentCart.find(i => i.id === menuItemId && !i.orderItemId);
         if (exist) {
             exist.qty++;
         } else {
@@ -711,8 +1047,25 @@
 
     function updateQty(idx, delta) {
         if (!currentCart[idx]) return;
-        currentCart[idx].qty += delta;
-        if (currentCart[idx].qty <= 0) currentCart.splice(idx, 1);
+        const item = currentCart[idx];
+        
+        // Ý KIẾN 1: Ngăn chặn bớt hoặc xóa món đã lưu
+        if (delta < 0 && item.orderItemId) {
+            const minQty = item.savedQty || 0;
+            if (item.qty + delta < minQty) {
+                showToast('⚠️ Món đã lưu không thể bớt hoặc xóa! Chỉ được phép thêm mới.', 'warn');
+                return;
+            }
+        }
+        
+        // Ý KIẾN 1: Ngăn chặn tăng số lượng trực tiếp trên dòng đã lưu
+        if (delta > 0 && item.orderItemId) {
+            showToast('⚠️ Món đã lưu không thể chỉnh sửa trực tiếp. Vui lòng bấm chọn món đó ở menu bên trái để thêm ly mới!', 'warn');
+            return;
+        }
+
+        item.qty += delta;
+        if (item.qty <= 0) currentCart.splice(idx, 1);
         renderCart();
     }
 
@@ -799,12 +1152,15 @@
         try {
             // Bước 1: Tạo order nếu chưa có
             if (!currentOrderId) {
+                const isTakeaway = currentOrderType === 'TAKE_AWAY';
                 const od = await apiFetch('/api/orders', {
                     method: 'POST',
                     body: JSON.stringify({
                         BranchId: BRANCH_ID, ShiftId: currentShiftId,
-                        TableId: parseInt(currentTableId), OrderType: 'DINE_IN', Note: '',
-                        CustomerId: currentCustomerId || null   // Bug#2: truyền khách hàng
+                        TableId: isTakeaway ? null : parseInt(currentTableId),
+                        OrderType: currentOrderType,
+                        Note: isTakeaway ? `Đơn mang về — MV-${currentTakeawaySlot}` : '',
+                        CustomerId: currentCustomerId || null
                     })
                 });
                 currentOrderId = od.id;
@@ -812,12 +1168,16 @@
 
             // Bước 2: Thêm món mới
             const newItems = currentCart.filter(i => !i.orderItemId);
+            // Nhân bản danh sách mới để in trước khi đánh dấu đã lưu
+            const printSnapshot = newItems.map(i => ({ ...i }));
+
             for (const item of newItems) {
                 await apiFetch(`/api/orders/${currentOrderId}/items`, {
                     method: 'POST',
                     body: JSON.stringify({ MenuItemId: item.id, Quantity: item.qty, Note: item.note || '' })
                 });
                 item.orderItemId = true;
+                item.savedQty = item.qty; // thiết lập số lượng đã lưu ban đầu
             }
 
             // Bước 3: Set COOKING
@@ -826,22 +1186,148 @@
                 body: JSON.stringify({ Status: 'COOKING', Note: 'Order từ POS' })
             });
 
-            // Bước 4: Cập nhật UI bàn → occupied
-            updateTableUI(currentTableId, 'occupied', currentCart.reduce((s, i) => s + i.price * i.qty, 0));
+            // Bước 4: Cập nhật UI bàn → occupied (chỉ khi DINE_IN)
+            if (currentOrderType !== 'TAKE_AWAY') {
+                updateTableUI(currentTableId, 'occupied', currentCart.reduce((s, i) => s + i.price * i.qty, 0));
+            } else {
+                // Đánh dấu slot MV đang bận
+                updateTakeawaySlotUI(currentTakeawaySlot, true,
+                    currentCart.reduce((s, i) => s + i.price * i.qty, 0));
+            }
 
             // Hiện nút Đã Phục Vụ và Hủy đơn sau khi lưu
             const btnServed = document.getElementById('btnServed');
             const btnCancel = document.getElementById('btnCancel');
             if (btnServed) btnServed.style.display = '';
-            if (btnCancel) btnCancel.style.display = '';
+            
+            // Ý KIẾN 1: CHỈ Manager và Admin mới có quyền hủy đơn sau khi lưu/in
+            if (btnCancel) {
+                btnCancel.style.display = (window.USER_ROLE === 'MANAGER' || window.USER_ROLE === 'ADMIN') ? '' : 'none';
+            }
 
             showToast(`✅ Đã lưu Order #${currentOrderId} — Bếp đang xử lý!`);
             renderCart();
+
+            // 🏷️ Lưu lịch sử in tem sau khi lưu đơn (CHỈ IN CÁC LY NƯỚC MỚI THÊM VÀO SAU CÙNG)
+            if (printSnapshot.length > 0) {
+                showLabelModal(currentOrderId, currentTableName, printSnapshot, false, false);
+            }
         } catch (err) {
             showToast('❌ ' + err.message, 'error');
         } finally {
             btn.disabled = false; btn.innerText = '📋 LƯU ĐƠN';
         }
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  IN TEM GỌI ĐỒ (🏷️ Label Print)
+    // ════════════════════════════════════════════════════════
+    function showLabelModal(orderId, tableName, cartSnapshot, autoPrint = false, showModal = true) {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        const dtStr   = `${dateStr} — ${timeStr}`;
+
+        document.getElementById('labelOrderId').innerText   = orderId ?? '—';
+        document.getElementById('labelTableName').innerText = tableName ?? '—';
+        document.getElementById('labelDateTime').innerText  = dtStr;
+
+        const area = document.getElementById('labelPrintArea');
+        area.innerHTML = '';
+        let totalLabels = 0;
+
+        cartSnapshot.forEach(item => {
+            for (let cup = 1; cup <= item.qty; cup++) {
+                totalLabels++;
+                area.innerHTML += buildLabelCard({
+                    orderId, tableName,
+                    itemName: item.name,
+                    cupIndex: cup, totalCups: item.qty,
+                    note: item.note || '',
+                    dateStr, timeStr,
+                    globalIndex: totalLabels,
+                    employeeName: window.FULL_NAME || '—'
+                });
+            }
+        });
+
+        document.getElementById('labelTotalCount').innerText = `${totalLabels} tem`;
+        if (showModal) {
+            document.getElementById('labelModalOverlay').classList.add('active');
+        }
+
+        // Lưu lịch sử in vào localStorage
+        savePrintHistory({ 
+            orderId, 
+            tableName, 
+            dtStr, 
+            totalLabels, 
+            employeeName: window.FULL_NAME || '—',
+            items: cartSnapshot.map(i => ({
+                name: i.name, qty: i.qty, note: i.note || ''
+            })) 
+        });
+
+        // Tự động in sau 400ms (chờ DOM render xong)
+        if (autoPrint) {
+            setTimeout(() => { window.print(); }, 400);
+        }
+    }
+
+    // ── Lưu lịch sử in tem vào localStorage ────────────────────────
+    const PRINT_HISTORY_KEY = 'cafe_print_history';
+    const MAX_PRINT_HISTORY = 100;
+
+    function savePrintHistory(record) {
+        try {
+            const existing = JSON.parse(localStorage.getItem(PRINT_HISTORY_KEY) || '[]');
+            existing.unshift(record);                          // mới nhất lên đầu
+            if (existing.length > MAX_PRINT_HISTORY) existing.length = MAX_PRINT_HISTORY;
+            localStorage.setItem(PRINT_HISTORY_KEY, JSON.stringify(existing));
+        } catch (e) { console.warn('savePrintHistory error:', e); }
+    }
+
+    // Đọc lịch sử in (public, được gọi từ trang lịch sử)
+    window.getPrintHistory = function() {
+        try { return JSON.parse(localStorage.getItem(PRINT_HISTORY_KEY) || '[]'); }
+        catch (e) { return []; }
+    };
+    window.clearPrintHistory = function() {
+        localStorage.removeItem(PRINT_HISTORY_KEY);
+    };
+
+    function buildLabelCard({ orderId, tableName, itemName, cupIndex, totalCups, note, dateStr, timeStr, globalIndex, employeeName }) {
+        const isMulti = totalCups > 1;
+        const cupBadge = isMulti ? `<span class="label-cup-badge">${cupIndex}/${totalCups}</span>` : '';
+        const noteHtml = note
+            ? `<div class="label-note">⚠️ ${note}</div>`
+            : `<div class="label-note" style="color:#aaa;font-style:italic;">— Không có yêu cầu đặc biệt</div>`;
+        const isTakeaway = currentOrderType === 'TAKE_AWAY';
+        const tableDisplay = isTakeaway
+            ? `<span class="label-takeaway-badge">🛍️ ${tableName}</span>`
+            : `<span class="label-table-badge">🧩 ${tableName}</span>`;
+        const empName = employeeName || window.FULL_NAME || '—';
+        return `
+        <div class="label-card">
+            <div class="label-top">
+                <div class="label-seq">#${String(globalIndex).padStart(2,'0')}</div>
+                ${tableDisplay}
+                ${cupBadge}
+            </div>
+            <div class="label-item-name">${itemName}</div>
+            <div class="label-waiter" style="font-size: 11px; font-weight: 700; color: #333; margin-top: 4px; margin-bottom: 4px;">
+                👤 NV Order: <span style="text-decoration: underline;">${empName}</span>
+            </div>
+            ${noteHtml}
+            <div class="label-footer">
+                <span>Order #${orderId}</span>
+                <span>${dateStr} &bull; ${timeStr}</span>
+            </div>
+        </div>`;
+    }
+
+    function closeLabelModal() {
+        document.getElementById('labelModalOverlay').classList.remove('active');
     }
 
     // ════════════════════════════════════════════════════════
@@ -885,12 +1371,17 @@
                 body: JSON.stringify({ Status: 'COMPLETED', Note: 'Thanh toán thành công' })
             });
 
-            // Bước 4: Trả bàn về EMPTY
-            await apiFetch(`/api/tables/${currentTableId}/status`, {
-                method: 'PATCH',
-                body: JSON.stringify({ Status: 'EMPTY' })
-            });
-            updateTableUI(currentTableId, 'empty', 0);
+            // Bước 4: Trả bàn về EMPTY (chỉ khi DINE_IN)
+            if (currentOrderType !== 'TAKE_AWAY' && currentTableId) {
+                await apiFetch(`/api/tables/${currentTableId}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ Status: 'EMPTY' })
+                });
+                updateTableUI(currentTableId, 'empty', 0);
+            } else if (currentOrderType === 'TAKE_AWAY') {
+                // Reset slot MV về rảnh
+                updateTakeawaySlotUI(currentTakeawaySlot, false, 0);
+            }
 
             closePaymentModal();
             showReceipt(currentOrderId, method);
@@ -913,6 +1404,11 @@
         const el = document.getElementById(`table-${tableId}`);
         if (!el) return;
         el.className = `tc ${status}`;
+        
+        // Dynamically update the onclick attribute to prevent stale status parameter
+        const name = el.querySelector('.tc-name')?.innerText || '';
+        el.setAttribute('onclick', `openOrder('${tableId}', '${name.replace(/'/g, "\\'")}', '${status}')`);
+
         const statusEl = el.querySelector('.tc-status');
         if (statusEl) statusEl.innerText = status === 'occupied' ? 'Có khách' : status === 'cleaning' ? 'Đang dọn' : 'Trống';
         let totalEl = el.querySelector('.tc-total');
@@ -925,6 +1421,31 @@
             }
             totalEl.innerText = total > 0 ? total.toLocaleString('vi-VN') + 'đ' : '';
         } else if (totalEl) { totalEl.remove(); }
+    }
+
+    // ── Cập nhật UI slot MV (Mang về) ───────────────────────
+    function updateTakeawaySlotUI(slotNum, busy, total) {
+        const el = document.getElementById(`takeaway-slot-${slotNum}`);
+        if (!el) return;
+
+        if (busy) {
+            el.classList.add('tc-takeaway-busy');
+            const statusEl = el.querySelector('.tc-takeaway-label');
+            if (statusEl) statusEl.innerText = 'Đang xử lý';
+            const totalEl = document.getElementById(`total-takeaway-${slotNum}`);
+            if (totalEl) {
+                totalEl.innerText = total > 0 ? total.toLocaleString('vi-VN') + 'đ' : '';
+                totalEl.style.display = total > 0 ? '' : 'none';
+            }
+        } else {
+            el.classList.remove('tc-takeaway-busy');
+            const statusEl = el.querySelector('.tc-takeaway-label');
+            if (statusEl) statusEl.innerText = 'Mang về';
+            const totalEl = document.getElementById(`total-takeaway-${slotNum}`);
+            if (totalEl) { totalEl.innerText = ''; totalEl.style.display = 'none'; }
+        }
+
+        updateAreaSummary();
     }
 
     // ════════════════════════════════════════════════════════
@@ -1019,7 +1540,13 @@
                 method: 'PATCH',
                 body: JSON.stringify({ Status: 'CANCELLED', Note: 'Hủy từ POS' })
             });
-            updateTableUI(currentTableId, 'empty', 0);
+            
+            if (currentOrderType !== 'TAKE_AWAY' && currentTableId) {
+                updateTableUI(currentTableId, 'empty', 0);
+            } else if (currentOrderType === 'TAKE_AWAY') {
+                updateTakeawaySlotUI(currentTakeawaySlot, false, 0);
+            }
+
             showToast(`🗑️ Đã hủy Order #${currentOrderId}`, 'warn');
             currentCart = []; currentOrderId = null;
             renderCart();
@@ -1043,9 +1570,15 @@
                 if (!el) return;
                 const st = t.status.toLowerCase();
                 el.className = `tc ${st}`;
+                // Giữ trạng thái hiển thị theo filter khu vực hiện tại
+                const nameEl = el.querySelector('.tc-name');
+                const name = nameEl ? nameEl.innerText : '';
+                if (!tableMatchesArea(name, currentAreaFilter)) el.style.display = 'none';
                 const statusEl = el.querySelector('.tc-status');
                 if (statusEl) statusEl.innerText = st === 'occupied' ? 'Có khách' : st === 'cleaning' ? 'Đang dọn' : 'Trống';
             });
+            await loadActiveOrdersState();
+            updateAreaSummary();
         } catch { /* silent */ }
     }
 

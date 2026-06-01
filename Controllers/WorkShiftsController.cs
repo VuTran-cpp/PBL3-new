@@ -160,6 +160,69 @@ namespace CafeManagement.Controllers
             return Ok(new ApiResponse<List<DailyShiftStatDto>>(true, null, stats));
         }
 
+        [HttpGet("{id:long}/employee-breakdown")]
+        public async Task<ActionResult<ApiResponse<List<EmployeeRevenueBreakdownDto>>>> GetEmployeeBreakdown(long id)
+        {
+            var pendingStatus = await _db.OrderStatuses.FirstOrDefaultAsync(s => s.Name == "PENDING");
+            var pendingStatusId = pendingStatus?.Id ?? 1;
+
+            var completedOrders = await _db.Orders
+                .Include(o => o.OrderStatus)
+                .Include(o => o.Payments)
+                .Include(o => o.StatusHistories)
+                    .ThenInclude(h => h.Account)
+                        .ThenInclude(a => a.Employee)
+                .Where(o => o.ShiftId == id && o.OrderStatus.Name == "COMPLETED")
+                .ToListAsync();
+
+            var shift = await _db.WorkShifts.Include(ws => ws.Employee).FirstOrDefaultAsync(ws => ws.Id == id);
+            var defaultEmployeeName = shift?.Employee?.FullName ?? "Nhân viên ca";
+            var defaultEmployeeId = shift?.EmployeeId ?? 0;
+
+            var breakdownList = completedOrders
+                .Select(o => {
+                    var creator = o.StatusHistories
+                        .OrderBy(h => h.ChangedAt)
+                        .FirstOrDefault();
+                    
+                    var empId = creator?.Account?.EmployeeId ?? defaultEmployeeId;
+                    var empName = creator?.Account?.Employee?.FullName ?? defaultEmployeeName;
+
+                    var payments = o.Payments.Where(p => p.Status.ToUpper() == "SUCCESS").ToList();
+                    decimal cashAmt = 0;
+                    decimal transAmt = 0;
+                    if (payments.Count == 0)
+                    {
+                        cashAmt = o.FinalAmount;
+                    }
+                    else
+                    {
+                        cashAmt = payments.Where(p => p.Method.ToUpper() == "CASH").Sum(p => p.Amount);
+                        transAmt = payments.Where(p => p.Method.ToUpper() == "BANK" || p.Method.ToUpper() == "CARD").Sum(p => p.Amount);
+                    }
+
+                    return new { 
+                        EmployeeId = empId, 
+                        EmployeeName = empName, 
+                        FinalAmount = o.FinalAmount,
+                        CashAmount = cashAmt,
+                        TransferAmount = transAmt
+                    };
+                })
+                .GroupBy(x => new { x.EmployeeId, x.EmployeeName })
+                .Select(g => new EmployeeRevenueBreakdownDto(
+                    g.Key.EmployeeId,
+                    g.Key.EmployeeName,
+                    g.Count(),
+                    g.Sum(x => x.FinalAmount),
+                    g.Sum(x => x.CashAmount),
+                    g.Sum(x => x.TransferAmount)
+                ))
+                .ToList();
+
+            return Ok(new ApiResponse<List<EmployeeRevenueBreakdownDto>>(true, null, breakdownList));
+        }
+
         private static WorkShiftDto MapToShiftDto(WorkShift ws, decimal revenue) => new(
             ws.Id, ws.BranchId, ws.EmployeeId, ws.Employee?.FullName ?? "",
             ws.StartTime, ws.EndTime,

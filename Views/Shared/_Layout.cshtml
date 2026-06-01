@@ -46,12 +46,16 @@
                 <span class="nav-icon">☕</span> Thực đơn
             </a>
 
-            <a href="/Tables" class="nav-link @(ViewBag.ActivePage == "Tables" ? "active" : "")">
-                <span class="nav-icon">🪑</span> Quản lý bàn
+            <a href="/Home/PrintHistory" class="nav-link @(ViewBag.ActivePage == "PrintHistory" ? "active" : "")">
+                <span class="nav-icon">🏷️</span> Lịch sử In Tem
             </a>
 
             @if (_isMgr) {
             <div class="sb-section-label" style="margin-top:8px;">Quản lý</div>
+
+            <a href="/Tables" class="nav-link @(ViewBag.ActivePage == "Tables" ? "active" : "")">
+                <span class="nav-icon">🪑</span> Quản lý bàn
+            </a>
 
             <a href="/Shifts" class="nav-link @(ViewBag.ActivePage == "Shifts" ? "active" : "")">
                 <span class="nav-icon">🕐</span> Ca làm việc
