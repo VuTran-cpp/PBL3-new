@@ -69,6 +69,23 @@ namespace CafeManagement.Controllers
             if (shift == null || shift.Status != "OPEN")
                 return BadRequest(new ApiResponse<WorkShiftDto>(false, "Ca không tồn tại hoặc đã đóng", null));
 
+            // ✅ FIX BUG-08: Kiểm tra bàn đang OCCUPIED trong chi nhánh
+            // Nếu không phải force close → trả lỗi cảnh báo danh sách bàn
+            if (!request.ForceClose)
+            {
+                var occupiedTables = await _db.Tables
+                    .Where(t => t.BranchId == shift.BranchId && t.Status == "OCCUPIED" && !t.IsDeleted)
+                    .ToListAsync();
+
+                if (occupiedTables.Any())
+                {
+                    var tableNames = string.Join(", ", occupiedTables.Select(t => t.Name));
+                    return BadRequest(new ApiResponse<WorkShiftDto>(false,
+                        $"Vẫn còn {occupiedTables.Count} bàn đang có khách ({tableNames}). " +
+                        "Vui lòng thanh toán hoặc xác nhận bỏ qua để đóng ca.", null));
+                }
+            }
+
             // Tính doanh thu ca dựa trên ShiftId
             var revenue = await CalcShiftRevenue(id);
 

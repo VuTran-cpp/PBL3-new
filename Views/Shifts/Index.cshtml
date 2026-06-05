@@ -521,22 +521,40 @@ async function closeShift() {
     if (isNaN(actual)) { showToast('⚠️ Nhập tiền thực tế trong két!', 'warn'); return; }
     const note = document.getElementById('closeNote').value;
     try {
-        // Check for active orders in the shift
+        // Kiểm tra đơn hàng chưa hoàn thành (client-side check trước)
         const res = await apiFetch(`/api/orders?branchId=${BRANCH_ID}&shiftId=${currentShift.id}&pageSize=100`);
         const items = res?.items || [];
         const activeOrders = items.filter(o => o.orderStatus !== 'COMPLETED' && o.orderStatus !== 'CANCELLED');
         if (activeOrders.length > 0) {
             const activeIds = activeOrders.map(o => `#${o.id}`).join(', ');
             const confirmMsg = `⚠️ Cảnh báo: Ca hiện tại đang có ${activeOrders.length} đơn hàng chưa thanh toán hoặc chưa hủy (${activeIds}). Bạn có chắc chắn muốn kết ca?`;
-            if (!confirm(confirmMsg)) {
-                return;
+            if (!confirm(confirmMsg)) { return; }
+        }
+
+        // ✅ FIX BUG-08: Gọi API đóng ca, xử lý cảnh báo bàn OCCUPIED từ server
+        const callCloseShift = async (forceClose) => {
+            return apiFetch(`/api/shifts/${currentShift.id}/close`, {
+                method: 'POST',
+                body: JSON.stringify({ ActualEndingCash: actual, Note: note, ForceClose: forceClose })
+            });
+        };
+
+        try {
+            await callCloseShift(false);
+        } catch (e) {
+            // Nếu server báo còn bàn OCCUPIED → hỏi có muốn bỏ qua không
+            if (e.message && e.message.includes('bàn đang có khách')) {
+                const forceMsg = `🪑 ${e.message}\n\nNhấn OK để đóng ca và bỏ qua cảnh báo này.`;
+                if (confirm(forceMsg)) {
+                    await callCloseShift(true); // ForceClose = true
+                } else {
+                    return; // Người dùng hủy
+                }
+            } else {
+                throw e; // Lỗi khác → ném tiếp
             }
         }
 
-        await apiFetch(`/api/shifts/${currentShift.id}/close`, {
-            method: 'POST',
-            body: JSON.stringify({ ActualEndingCash: actual, Note: note })
-        });
         showToast('✅ Đóng ca thành công!');
         closeModal('closeShiftModal');
         window.CURRENT_SHIFT_ID = null;

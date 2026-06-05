@@ -97,7 +97,8 @@ namespace CafeManagement.DTOs
         decimal Revenue = 0);
 
     public record OpenShiftRequest(int BranchId, int EmployeeId, decimal StartingCash);
-    public record CloseShiftRequest(decimal ActualEndingCash, string? Note);
+    // ✅ FIX BUG-08: Thêm ForceClose để cho phép đóng ca dù còn bàn đang OCCUPIED
+    public record CloseShiftRequest(decimal ActualEndingCash, string? Note, bool ForceClose = false);
     public record EmployeeRevenueBreakdownDto(int EmployeeId, string EmployeeName, int OrderCount, decimal TotalRevenue, decimal CashRevenue, decimal TransferRevenue);
 
     public record DailyShiftStatDto(
