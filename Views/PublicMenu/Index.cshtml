@@ -368,7 +368,8 @@ let allCategories = [];
 let activeCatId   = 'all';
 
 function formatVND(val) {
-    return new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND'}).format(val);
+    if (!val) return '0đ';
+    return Math.round(Number(val)).toLocaleString('vi-VN') + 'đ';
 }
 
 // ── Load table info (optional, only show if tableId given) ──────────

@@ -207,7 +207,7 @@ async function loadRevenueChart(days) {
                 responsive: true,
                 plugins: { legend: { display: false } },
                 scales: {
-                    y: { ticks: { callback: v => (v/1e6).toFixed(1)+'tr' }, grid: { color: 'rgba(0,0,0,.05)' } },
+                    y: { ticks: { callback: v => v.toLocaleString('vi-VN') + ' VNĐ' }, grid: { color: 'rgba(0,0,0,.05)' } },
                     x: { grid: { display: false } }
                 }
             }

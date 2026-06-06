@@ -89,7 +89,7 @@ if (!document.getElementById('toast-keyframes')) {
 // ── Number / Date Formatters ────────────────────────────────────────────
 function formatVND(amount) {
     if (amount == null) return '0đ';
-    return Number(amount).toLocaleString('vi-VN') + 'đ';
+    return Math.round(Number(amount)).toLocaleString('vi-VN') + 'đ';
 }
 
 function formatDateTime(dt) {
