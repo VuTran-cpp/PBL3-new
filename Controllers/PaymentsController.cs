@@ -22,6 +22,9 @@ namespace CafeManagement.Controllers
             if (order == null)
                 return NotFound(new ApiResponse<PaymentDto>(false, "Order không tồn tại", null));
 
+            if (request.Amount <= 0)
+                return BadRequest(new ApiResponse<PaymentDto>(false, "Số tiền thanh toán phải lớn hơn 0", null));
+
             var validMethods = new[] { "CASH", "BANK", "CARD" };
             if (!validMethods.Contains(request.Method.ToUpper()))
                 return BadRequest(new ApiResponse<PaymentDto>(false, "Phương thức thanh toán không hợp lệ", null));

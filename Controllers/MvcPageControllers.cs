@@ -13,8 +13,35 @@ namespace CafeManagement.Controllers
     // ─── Base: xác thực session ──────────────────────────────────────────
     public abstract class AuthenticatedController : Controller
     {
+        /// <summary>
+        /// Kiểm tra session có token VÀ token chưa hết hạn.
+        /// ✅ FIX BUG-09: Không chỉ check session tồn tại, còn decode JWT để check ValidTo.
+        /// </summary>
         protected bool IsAuthenticated()
-            => !string.IsNullOrEmpty(HttpContext.Session.GetString("JwtToken"));
+        {
+            var token = HttpContext.Session.GetString("JwtToken");
+            if (string.IsNullOrEmpty(token)) return false;
+
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                if (!handler.CanReadToken(token)) return false;
+                var jwt = handler.ReadJwtToken(token);
+                // Token hết hạn → xóa session, buộc đăng nhập lại
+                if (jwt.ValidTo < DateTime.UtcNow)
+                {
+                    HttpContext.Session.Clear();
+                    return false;
+                }
+                return true;
+            }
+            catch
+            {
+                // Token malformed → xóa session
+                HttpContext.Session.Clear();
+                return false;
+            }
+        }
 
         protected IActionResult RequireAuth()
             => Redirect("/Login");

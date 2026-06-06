@@ -377,6 +377,8 @@
     let currentOrderType    = 'DINE_IN';   // 'DINE_IN' hoặc 'TAKE_AWAY'
     let currentAreaFilter   = 'all';       // 'all' | 'tang1' | 'tang2' | 'bancong' | 'takeaway'
     let currentTakeawaySlot = null;        // số slot MV-1..MV-5 đang mở
+    let isSaving            = false;       // ✅ FIX BUG-03: chặn double-click gây tạo đơn trùng
+    let pendingPromoCode    = null;        // ✅ FIX BUG-02: lưu mã promo chưa ghi DB (chưa có orderId)
 
 
     // ════════════════════════════════════════════════════════
@@ -1048,17 +1050,37 @@
     function updateQty(idx, delta) {
         if (!currentCart[idx]) return;
         const item = currentCart[idx];
-        
-        // Ý KIẾN 1: Ngăn chặn bớt hoặc xóa món đã lưu
+
+        // ✅ FIX BUG-05: Phân quyền xóa/bớt món đã lưu
         if (delta < 0 && item.orderItemId) {
-            const minQty = item.savedQty || 0;
-            if (item.qty + delta < minQty) {
-                showToast('⚠️ Món đã lưu không thể bớt hoặc xóa! Chỉ được phép thêm mới.', 'warn');
+            if (window.USER_ROLE === 'MANAGER' || window.USER_ROLE === 'ADMIN') {
+                // Manager được phép xóa món đã lưu trên DB
+                const newQty = item.qty + delta;
+                if (newQty <= 0) {
+                    if (!confirm(`Xóa "${item.name}" khỏi đơn hàng? (Thao tác này sẽ xóa trên hệ thống)`)) return;
+                    // Gọi API xóa món trên DB
+                    apiFetch(`/api/orders/${currentOrderId}/items/${item.orderItemId}`, {
+                        method: 'DELETE'
+                    }).then(() => {
+                        currentCart.splice(idx, 1);
+                        renderCart();
+                        showToast(`✅ Đã xóa "${item.name}" khỏi đơn`);
+                    }).catch(err => {
+                        showToast('❌ Không thể xóa món: ' + err.message, 'error');
+                    });
+                    return; // chờ API, không thay đổi cart ngay
+                } else {
+                    showToast('⚠️ Chỉ có thể xóa hoàn toàn món đã lưu, không thể bớt số lượng. Nhấn xóa (−) thêm lần nữa.', 'warn');
+                    return;
+                }
+            } else {
+                // Nhân viên thường không được xóa món đã lưu
+                showToast('⚠️ Món đã lưu không thể xóa! Liên hệ quản lý nếu cần hủy món này.', 'warn');
                 return;
             }
         }
-        
-        // Ý KIẾN 1: Ngăn chặn tăng số lượng trực tiếp trên dòng đã lưu
+
+        // Ngăn chặn tăng số lượng trực tiếp trên dòng đã lưu (mọi role)
         if (delta > 0 && item.orderItemId) {
             showToast('⚠️ Món đã lưu không thể chỉnh sửa trực tiếp. Vui lòng bấm chọn món đó ở menu bên trái để thêm ly mới!', 'warn');
             return;
@@ -1107,13 +1129,17 @@
     // ════════════════════════════════════════════════════════
     //  ÁP MÃ KHUYẾN MÃI
     // ════════════════════════════════════════════════════════
+    // ✅ FIX BUG-02: applyPromo tách thành 2 bước:
+    //   - Luôn validate và hiển thị preview giảm giá (UX)
+    //   - Nếu đã có orderId → gọi API ghi vào DB ngay
+    //   - Nếu chưa có orderId → lưu tạm pendingPromoCode, áp sau khi tạo order
     async function applyPromo() {
         const code = document.getElementById('promoInput')?.value?.trim().toUpperCase();
         if (!code) return;
         const info = document.getElementById('promoInfo');
         info.innerText = '⏳ Đang kiểm tra...';
         try {
-            // Lấy danh sách promo và tìm theo code
+            // Bước 1: Validate mã và tính preview
             const promos = await apiFetch('/api/promotions?activeOnly=true');
             const promo = promos?.find(p => p.code?.toUpperCase() === code);
             if (!promo) throw new Error('Mã không hợp lệ hoặc đã hết hạn');
@@ -1128,11 +1154,37 @@
             } else { discount = promo.value; }
             currentDiscount  = Math.round(discount);
             currentPromoCode = code;
-            info.style.color = 'var(--green)';
-            info.innerText = `🎉 "${promo.name}" — Giảm ${currentDiscount.toLocaleString('vi-VN')}đ`;
+
+            // Bước 2: Nếu đã có orderId → ghi ngay vào DB
+            if (currentOrderId) {
+                try {
+                    const result = await apiFetch(`/api/orders/${currentOrderId}/promotions`, {
+                        method: 'POST',
+                        body: JSON.stringify({ PromotionCode: code })
+                    });
+                    // Server trả về order đã cập nhật → đồng bộ discount từ DB
+                    if (result && result.discountAmount !== undefined) {
+                        currentDiscount = result.discountAmount;
+                    }
+                    pendingPromoCode = null;
+                    info.style.color = 'var(--green)';
+                    info.innerText = `🎉 "${promo.name}" — Giảm ${currentDiscount.toLocaleString('vi-VN')}đ (đã lưu)`;
+                } catch (apiErr) {
+                    // Nếu API thất bại (vd: đã áp rồi), vẫn hiển thị preview
+                    pendingPromoCode = null;
+                    currentDiscount  = 0;
+                    currentPromoCode = null;
+                    throw apiErr;
+                }
+            } else {
+                // Chưa có order → lưu tạm, sẽ áp khi saveOrder
+                pendingPromoCode = code;
+                info.style.color = 'var(--amber)';
+                info.innerText = `⏳ "${promo.name}" — Giảm ~${currentDiscount.toLocaleString('vi-VN')}đ (áp khi lưu đơn)`;
+            }
             updateTotals();
         } catch(e) {
-            currentDiscount = 0; currentPromoCode = null;
+            currentDiscount = 0; currentPromoCode = null; pendingPromoCode = null;
             info.style.color = 'var(--red)';
             info.innerText = '❌ ' + e.message;
             updateTotals();
@@ -1145,6 +1197,10 @@
     async function saveOrder() {
         if (currentCart.length === 0) { showToast('⚠️ Giỏ hàng trống!', 'warn'); return; }
         if (!currentShiftId) { showToast('❌ Chưa mở ca làm việc!', 'error'); return; }
+
+        // ✅ FIX BUG-03: Chặn double-click — tránh tạo 2 order trùng cho cùng 1 bàn
+        if (isSaving) { showToast('⏳ Đang xử lý, vui lòng chờ...', 'warn'); return; }
+        isSaving = true;
 
         const btn = document.getElementById('btnSave');
         btn.disabled = true; btn.innerText = '⏳...';
@@ -1164,6 +1220,31 @@
                     })
                 });
                 currentOrderId = od.id;
+
+                // ✅ FIX BUG-02: Áp mã khuyến mãi đang chờ (pendingPromoCode) vào order vừa tạo
+                if (pendingPromoCode) {
+                    try {
+                        const promoResult = await apiFetch(`/api/orders/${currentOrderId}/promotions`, {
+                            method: 'POST',
+                            body: JSON.stringify({ PromotionCode: pendingPromoCode })
+                        });
+                        // Đồng bộ discount từ server
+                        if (promoResult && promoResult.discountAmount !== undefined) {
+                            currentDiscount = promoResult.discountAmount;
+                        }
+                        const promoInfo = document.getElementById('promoInfo');
+                        if (promoInfo) {
+                            promoInfo.style.color = 'var(--green)';
+                            promoInfo.innerText = promoInfo.innerText.replace('(áp khi lưu đơn)', '(đã lưu)');
+                        }
+                    } catch (promoErr) {
+                        console.warn('Áp mã khuyến mãi thất bại:', promoErr.message);
+                        showToast('⚠️ Mã khuyến mãi không áp được: ' + promoErr.message, 'warn');
+                        currentDiscount = 0;
+                    } finally {
+                        pendingPromoCode = null;
+                    }
+                }
             }
 
             // Bước 2: Thêm món mới
@@ -1186,21 +1267,38 @@
                 body: JSON.stringify({ Status: 'COOKING', Note: 'Order từ POS' })
             });
 
-            // Bước 4: Cập nhật UI bàn → occupied (chỉ khi DINE_IN)
+            // Bước 4: Đồng bộ FinalAmount từ server để hiển thị đúng
+            try {
+                const orderDetail = await apiFetch(`/api/orders/${currentOrderId}`);
+                if (orderDetail) {
+                    currentDiscount = orderDetail.discountAmount || 0;
+                    updateTotals();
+                    // Cập nhật tổng tiền hiển thị trên bàn
+                    if (currentOrderType !== 'TAKE_AWAY') {
+                        updateTableUI(currentTableId, 'occupied', orderDetail.finalAmount);
+                    } else {
+                        updateTakeawaySlotUI(currentTakeawaySlot, true, orderDetail.finalAmount);
+                    }
+                }
+            } catch { /* không làm gián đoạn nếu fetch detail thất bại */ }
+
+            // Bước 5: Cập nhật UI bàn nếu chưa cập nhật
             if (currentOrderType !== 'TAKE_AWAY') {
-                updateTableUI(currentTableId, 'occupied', currentCart.reduce((s, i) => s + i.price * i.qty, 0));
+                const tableEl = document.getElementById(`table-${currentTableId}`);
+                if (tableEl && !tableEl.classList.contains('occupied')) {
+                    updateTableUI(currentTableId, 'occupied', currentCart.reduce((s, i) => s + i.price * i.qty, 0));
+                }
             } else {
-                // Đánh dấu slot MV đang bận
-                updateTakeawaySlotUI(currentTakeawaySlot, true,
-                    currentCart.reduce((s, i) => s + i.price * i.qty, 0));
+                const slotEl = document.getElementById(`takeaway-slot-${currentTakeawaySlot}`);
+                if (slotEl && !slotEl.classList.contains('tc-takeaway-busy')) {
+                    updateTakeawaySlotUI(currentTakeawaySlot, true, currentCart.reduce((s, i) => s + i.price * i.qty, 0));
+                }
             }
 
             // Hiện nút Đã Phục Vụ và Hủy đơn sau khi lưu
             const btnServed = document.getElementById('btnServed');
             const btnCancel = document.getElementById('btnCancel');
             if (btnServed) btnServed.style.display = '';
-            
-            // Ý KIẾN 1: CHỈ Manager và Admin mới có quyền hủy đơn sau khi lưu/in
             if (btnCancel) {
                 btnCancel.style.display = (window.USER_ROLE === 'MANAGER' || window.USER_ROLE === 'ADMIN') ? '' : 'none';
             }
@@ -1208,13 +1306,14 @@
             showToast(`✅ Đã lưu Order #${currentOrderId} — Bếp đang xử lý!`);
             renderCart();
 
-            // 🏷️ Lưu lịch sử in tem sau khi lưu đơn (CHỈ IN CÁC LY NƯỚC MỚI THÊM VÀO SAU CÙNG)
+            // 🏷️ Lưu lịch sử in tem sau khi lưu đơn
             if (printSnapshot.length > 0) {
                 showLabelModal(currentOrderId, currentTableName, printSnapshot, false, false);
             }
         } catch (err) {
             showToast('❌ ' + err.message, 'error');
         } finally {
+            isSaving = false; // ✅ FIX BUG-03: luôn reset flag dù thành công hay thất bại
             btn.disabled = false; btn.innerText = '📋 LƯU ĐƠN';
         }
     }
@@ -1357,15 +1456,42 @@
             if (!currentOrderId) throw new Error('Không thể tạo đơn hàng');
 
             const method = document.getElementById('pmMethod').value;
-            const total  = currentCart.reduce((s, i) => s + i.price * i.qty, 0) - currentDiscount;
 
-            // Bước 2: Tạo payment
+            // ✅ FIX BUG-01: Lấy FinalAmount từ DB thay vì tính lại ở frontend
+            // Điều này đảm bảo giảm giá, điều chỉnh server-side đều được tính đúng
+            let finalAmount;
+            try {
+                const orderFromDB = await apiFetch(`/api/orders/${currentOrderId}`);
+                finalAmount = orderFromDB.finalAmount;
+                if (finalAmount === undefined || finalAmount === null) {
+                    throw new Error('Không lấy được tổng tiền từ server');
+                }
+                if (finalAmount <= 0) {
+                    // Đơn 0đ (đã giảm 100%) — vẫn cần tạo payment để ghi nhận
+                    // nhưng cảnh báo để nhân viên xác nhận
+                    if (!confirm(`Tổng tiền sau giảm giá là 0đ. Xác nhận hoàn tất đơn miễn phí?`)) {
+                        btn.disabled = false; btn.innerText = '✅ Xác nhận thanh toán';
+                        return;
+                    }
+                    finalAmount = 0;
+                }
+            } catch (fetchErr) {
+                // Fallback: tính từ cart nếu không fetch được (mất mạng)
+                console.warn('Không thể lấy FinalAmount từ server, dùng fallback:', fetchErr.message);
+                finalAmount = Math.max(0, currentCart.reduce((s, i) => s + i.price * i.qty, 0) - currentDiscount);
+            }
+
+            // Cập nhật hiển thị tổng tiền trong modal đúng với server
+            const pmTotalEl = document.getElementById('pmTotal');
+            if (pmTotalEl) pmTotalEl.innerText = finalAmount.toLocaleString('vi-VN') + 'đ';
+
+            // Bước 2: Tạo payment với Amount từ server
             await apiFetch('/api/payments', {
                 method: 'POST',
-                body: JSON.stringify({ OrderId: currentOrderId, Amount: total, Method: method })
+                body: JSON.stringify({ OrderId: currentOrderId, Amount: finalAmount, Method: method })
             });
 
-            // Bước 3: Mark COMPLETED (stored proc tự trừ kho)
+            // Bước 3: Mark COMPLETED
             await apiFetch(`/api/orders/${currentOrderId}/status`, {
                 method: 'PATCH',
                 body: JSON.stringify({ Status: 'COMPLETED', Note: 'Thanh toán thành công' })
@@ -1379,16 +1505,14 @@
                 });
                 updateTableUI(currentTableId, 'empty', 0);
             } else if (currentOrderType === 'TAKE_AWAY') {
-                // Reset slot MV về rảnh
                 updateTakeawaySlotUI(currentTakeawaySlot, false, 0);
             }
 
             closePaymentModal();
-            showReceipt(currentOrderId, method);
+            showReceipt(currentOrderId, method, finalAmount); // ✅ FIX BUG-01: truyền finalAmount đã đồng bộ
             closeOrder();
-            showToast(`✅ Thanh toán thành công! Order #${currentOrderId}`);
+            showToast(`✅ Thanh toán thành công! Order #${currentOrderId} — ${finalAmount.toLocaleString('vi-VN')}đ`);
 
-            // Ẩn nút served/cancel sau khi hoàn tất
             const btnServed2 = document.getElementById('btnServed');
             const btnCancel2 = document.getElementById('btnCancel');
             if (btnServed2) btnServed2.style.display = 'none';
@@ -1451,9 +1575,14 @@
     // ════════════════════════════════════════════════════════
     //  HIỂN THỊ RECEIPT
     // ════════════════════════════════════════════════════════
-    function showReceipt(orderId, method) {
-        const total = currentCart.reduce((s, i) => s + i.price * i.qty, 0);
-        const finalTotal = total - (currentDiscount || 0);
+    // ✅ FIX BUG-01: Nhận thêm tham số finalAmount từ server để in hóa đơn đúng
+    function showReceipt(orderId, method, finalAmount) {
+        const subtotal = currentCart.reduce((s, i) => s + i.price * i.qty, 0);
+        // Nếu server truyền finalAmount thì dùng, fallback là tính từ cart
+        const serverFinalAmount = (finalAmount !== undefined && finalAmount !== null)
+            ? finalAmount
+            : Math.max(0, subtotal - (currentDiscount || 0));
+        const discountToShow = subtotal - serverFinalAmount;
         const methodLabel = { CASH:'💵 Tiền mặt', BANK:'🏦 Chuyển khoản', CARD:'💳 Thẻ' }[method] || 'Tiền mặt';
 
         document.getElementById('rTable').innerText = currentTableName;
@@ -1468,15 +1597,17 @@
             </div>
             ${i.note ? `<div style="font-size:11px;font-style:italic;margin:-5px 0 5px;color:#666;"> ↳ ${i.note}</div>` : ''}
         `).join('');
-        if (currentDiscount > 0) {
+        if (discountToShow > 0) {
             const dr = document.getElementById('rDiscountRow');
-            dr.style.display = 'flex';
-            document.getElementById('rDiscount').innerText = currentDiscount.toLocaleString('vi-VN') + 'đ';
+            if (dr) dr.style.display = 'flex';
+            const rdEl = document.getElementById('rDiscount');
+            if (rdEl) rdEl.innerText = discountToShow.toLocaleString('vi-VN') + 'đ';
         }
-        document.getElementById('rTotal').innerText = finalTotal.toLocaleString('vi-VN');
+        document.getElementById('rTotal').innerText = serverFinalAmount.toLocaleString('vi-VN');
         document.getElementById('receiptModal').classList.add('active');
         document.getElementById('overlay').classList.add('active');
-        currentCart = []; currentOrderId = null; currentDiscount = 0; currentPromoCode = null; currentCustomerName = '';
+        currentCart = []; currentOrderId = null; currentDiscount = 0;
+        currentPromoCode = null; pendingPromoCode = null; currentCustomerName = '';
     }
 
     // ════════════════════════════════════════════════════════

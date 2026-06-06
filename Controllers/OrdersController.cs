@@ -110,8 +110,12 @@ namespace CafeManagement.Controllers
             if (shift == null)
                 return BadRequest(new ApiResponse<OrderDto>(false, "Ca làm việc không hợp lệ hoặc đã đóng", null));
 
+            // ✅ FIX BUG-06: DINE_IN bắt buộc phải có TableId
+            if (request.OrderType.ToUpper() == "DINE_IN" && !request.TableId.HasValue)
+                return BadRequest(new ApiResponse<OrderDto>(false, "Đơn ăn tại chỗ (DINE_IN) phải chọn bàn", null));
+
             // Kiểm tra bàn (nếu DINE_IN)
-            if (request.OrderType == "DINE_IN" && request.TableId.HasValue)
+            if (request.OrderType.ToUpper() == "DINE_IN" && request.TableId.HasValue)
             {
                 var table = await _db.Tables.FindAsync(request.TableId.Value);
                 if (table == null)
@@ -389,6 +393,14 @@ namespace CafeManagement.Controllers
 
             order.IsDeleted = true;
             order.DeletedAt = DateTime.UtcNow;
+
+            // ✅ FIX BUG-10: Trả bàn về EMPTY khi xóa order (tránh bàn bị khóa mãi)
+            if (order.TableId.HasValue)
+            {
+                var table = await _db.Tables.FindAsync(order.TableId.Value);
+                if (table != null) { table.Status = "EMPTY"; table.UpdatedAt = DateTime.UtcNow; }
+            }
+
             await _db.SaveChangesAsync();
 
             return Ok(new ApiResponse<object>(true, "Đã xóa order", null));
