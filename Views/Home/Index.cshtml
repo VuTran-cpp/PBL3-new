@@ -788,7 +788,21 @@
                 const orders = res?.items || [];
                 for (const order of orders) {
                     if (order.orderType === 'DINE_IN' && order.tableId) {
-                        updateTableUI(order.tableId, 'occupied', order.finalAmount);
+                        // Chỉ cập nhật tổng tiền cho bàn ĐÃ ĐƯỢC đánh dấu occupied trong DB
+                        // KHÔNG tự động chuyển bàn sang trạng thái occupied
+                        const tableEl = document.getElementById(`table-${order.tableId}`);
+                        if (tableEl && tableEl.classList.contains('occupied')) {
+                            const totalEl = tableEl.querySelector('.tc-total') || (() => {
+                                const el = document.createElement('div');
+                                el.className = 'tc-total';
+                                el.id = `total-table-${order.tableId}`;
+                                tableEl.querySelector('.tc-info')?.appendChild(el);
+                                return el;
+                            })();
+                            if (totalEl) {
+                                totalEl.innerText = order.finalAmount > 0 ? order.finalAmount.toLocaleString('vi-VN') + 'đ' : '';
+                            }
+                        }
                     } else if (order.orderType === 'TAKE_AWAY' && order.note) {
                         const match = order.note.match(/MV-(\d+)/);
                         if (match) {
@@ -883,6 +897,12 @@
     async function openOrder(tableId, tableName, status) {
         const tableEl = document.getElementById(`table-${tableId}`);
         const realStatus = tableEl ? (tableEl.classList.contains('occupied') ? 'occupied' : tableEl.classList.contains('cleaning') ? 'cleaning' : 'empty') : status;
+
+        // ✅ FIX: Chặn mở order khi bàn đang dọn
+        if (realStatus === 'cleaning') {
+            showToast(`🧹 Bàn "${tableName}" đang được dọn dẹp!\nVui lòng chờ hoặc chọn bàn khác.`, 'error');
+            return;
+        }
 
         currentOrderType = 'DINE_IN';    // reset về dine-in khi click bàn
         currentTableId   = tableId;
@@ -1198,6 +1218,18 @@
         if (currentCart.length === 0) { showToast('⚠️ Giỏ hàng trống!', 'warn'); return; }
         if (!currentShiftId) { showToast('❌ Chưa mở ca làm việc!', 'error'); return; }
 
+        // ✅ FIX: Kiểm tra bàn có đang dọn không trước khi lưu đơn
+        if (currentOrderType === 'DINE_IN' && currentTableId && !currentOrderId) {
+            try {
+                const tables = await apiFetch(`/api/tables?branchId=${BRANCH_ID}`);
+                const table = tables?.find(t => t.id == currentTableId);
+                if (table && table.status === 'CLEANING') {
+                    showToast(`🧹 Bàn "${currentTableName}" đang được dọn dẹp! Không thể tạo đơn.`, 'error');
+                    return;
+                }
+            } catch (e) { console.warn('Không kiểm tra được trạng thái bàn:', e.message); }
+        }
+
         // ✅ FIX BUG-03: Chặn double-click — tránh tạo 2 order trùng cho cùng 1 bàn
         if (isSaving) { showToast('⏳ Đang xử lý, vui lòng chờ...', 'warn'); return; }
         isSaving = true;
@@ -1221,30 +1253,7 @@
                 });
                 currentOrderId = od.id;
 
-                // ✅ FIX BUG-02: Áp mã khuyến mãi đang chờ (pendingPromoCode) vào order vừa tạo
-                if (pendingPromoCode) {
-                    try {
-                        const promoResult = await apiFetch(`/api/orders/${currentOrderId}/promotions`, {
-                            method: 'POST',
-                            body: JSON.stringify({ PromotionCode: pendingPromoCode })
-                        });
-                        // Đồng bộ discount từ server
-                        if (promoResult && promoResult.discountAmount !== undefined) {
-                            currentDiscount = promoResult.discountAmount;
-                        }
-                        const promoInfo = document.getElementById('promoInfo');
-                        if (promoInfo) {
-                            promoInfo.style.color = 'var(--green)';
-                            promoInfo.innerText = promoInfo.innerText.replace('(áp khi lưu đơn)', '(đã lưu)');
-                        }
-                    } catch (promoErr) {
-                        console.warn('Áp mã khuyến mãi thất bại:', promoErr.message);
-                        showToast('⚠️ Mã khuyến mãi không áp được: ' + promoErr.message, 'warn');
-                        currentDiscount = 0;
-                    } finally {
-                        pendingPromoCode = null;
-                    }
-                }
+                // Promo code logic moved to after items are added so SubTotal > 0
             }
 
             // Bước 2: Thêm món mới
@@ -1259,6 +1268,31 @@
                 });
                 item.orderItemId = true;
                 item.savedQty = item.qty; // thiết lập số lượng đã lưu ban đầu
+            }
+
+            // ✅ FIX BUG-02: Áp mã khuyến mãi đang chờ (pendingPromoCode) vào order sau khi đã thêm món
+            if (pendingPromoCode) {
+                try {
+                    const promoResult = await apiFetch(`/api/orders/${currentOrderId}/promotions`, {
+                        method: 'POST',
+                        body: JSON.stringify({ PromotionCode: pendingPromoCode })
+                    });
+                    // Đồng bộ discount từ server
+                    if (promoResult && promoResult.discountAmount !== undefined) {
+                        currentDiscount = promoResult.discountAmount;
+                    }
+                    const promoInfo = document.getElementById('promoInfo');
+                    if (promoInfo) {
+                        promoInfo.style.color = 'var(--green)';
+                        promoInfo.innerText = promoInfo.innerText.replace('(áp khi lưu đơn)', '(đã lưu)');
+                    }
+                } catch (promoErr) {
+                    console.warn('Áp mã khuyến mãi thất bại:', promoErr.message);
+                    showToast('⚠️ Mã khuyến mãi không áp được: ' + promoErr.message, 'warn');
+                    currentDiscount = 0;
+                } finally {
+                    pendingPromoCode = null;
+                }
             }
 
             // Bước 3: Set COOKING
@@ -1432,10 +1466,23 @@
     // ════════════════════════════════════════════════════════
     //  THANH TOÁN → mở modal chọn phương thức
     // ════════════════════════════════════════════════════════
-    function openPaymentModal() {
+    async function openPaymentModal() {
         if (!currentOrderId && currentCart.length === 0) {
             showToast('⚠️ Chưa có đơn hàng để thanh toán!', 'warn'); return;
         }
+
+        // ✅ FIX: Kiểm tra bàn có đang dọn không trước khi thanh toán
+        if (currentOrderType === 'DINE_IN' && currentTableId && !currentOrderId) {
+            try {
+                const tables = await apiFetch(`/api/tables?branchId=${BRANCH_ID}`);
+                const table = tables?.find(t => t.id == currentTableId);
+                if (table && table.status === 'CLEANING') {
+                    showToast(`🧹 Bàn "${currentTableName}" đang được dọn dẹp! Không thể thanh toán.`, 'error');
+                    return;
+                }
+            } catch (e) { console.warn('Không kiểm tra được trạng thái bàn:', e.message); }
+        }
+
         const total = currentCart.reduce((s, i) => s + i.price * i.qty, 0) - currentDiscount;
         document.getElementById('pmTableName').innerText = currentTableName;
         document.getElementById('pmTotal').innerText = total.toLocaleString('vi-VN') + 'đ';

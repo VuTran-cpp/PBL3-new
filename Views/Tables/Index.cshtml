@@ -135,6 +135,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 let selectedStatus = null;
+let originalTableStatus = null;
 let _pollRef       = null;
 let _pollSeconds   = 30;
 let _pollPaused    = false;
@@ -247,6 +248,7 @@ function openStatusModal(id, name, currentStatus) {
     document.getElementById('selectedTableId').value = id;
     document.getElementById('statusModalTitle').textContent = `Cập nhật: ${name}`;
     selectedStatus = currentStatus;
+    originalTableStatus = currentStatus;
     
     // Toggle delete button for managers
     const btnDel = document.getElementById('btnDeleteTable');
@@ -293,8 +295,8 @@ async function updateStatus() {
     const id = document.getElementById('selectedTableId').value;
     if (!selectedStatus) { showToast('⚠️ Chọn trạng thái!', 'warn'); return; }
 
-    // Kiểm tra khi chuyển sang EMPTY: có order chưa thanh toán không?
-    if (selectedStatus === 'EMPTY') {
+    // Kiểm tra khi chuyển từ OCCUPIED sang EMPTY: bàn đang có khách
+    if (originalTableStatus === 'OCCUPIED' && selectedStatus === 'EMPTY') {
         try {
             // Tìm order đang COOKING/SERVED/PENDING (chưa COMPLETED/CANCELLED) của bàn này
             const statuses = ['COOKING', 'SERVED', 'PENDING'];
@@ -309,9 +311,44 @@ async function updateStatus() {
             if (unpaidOrders.length > 0) {
                 const orderIds = unpaidOrders.map(o => `#${o.id}`).join(', ');
                 const confirmed = confirm(
-                    `⚠️ Bàn này còn ${unpaidOrders.length} đơn hàng chưa thanh toán (${orderIds}).\n\nBạn đã xác nhận thanh toán chưa?\n\nNhấn "OK" nếu đã thanh toán xong, "Cancel" để hủy.`
+                    `⚠️ Bàn đang có khách!\n\nBàn này còn ${unpaidOrders.length} đơn hàng chưa thanh toán (${orderIds}).\n\nBạn có xác nhận thanh toán không?\n\nNhấn "OK" để thanh toán và trả bàn, "Cancel" để giữ nguyên.`
                 );
-                if (!confirmed) return;
+                if (!confirmed) {
+                    // Giữ nguyên trạng thái OCCUPIED
+                    showToast('ℹ️ Giữ nguyên trạng thái bàn — bàn vẫn có khách.');
+                    closeModal('statusModal');
+                    return;
+                }
+                // Xác nhận thanh toán: ghi đơn (tạo payment + COMPLETED) cho từng order
+                try {
+                    for (const order of unpaidOrders) {
+                        // 1. Tạo payment
+                        await apiFetch('/api/payments', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                OrderId: order.id,
+                                Amount: order.finalAmount || 0,
+                                Method: 'CASH'
+                            })
+                        });
+                        // 2. Chuyển trạng thái order sang COMPLETED
+                        await apiFetch(`/api/orders/${order.id}/status`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({
+                                Status: 'COMPLETED',
+                                Note: 'Thanh toán từ mục Quản lý Bàn'
+                            })
+                        });
+                    }
+                    showToast(`✅ Đã thanh toán ${unpaidOrders.length} đơn hàng và trả bàn thành công!`);
+                } catch (payErr) {
+                    showToast('❌ Lỗi khi thanh toán: ' + payErr.message, 'error');
+                    return;
+                }
+                // Order đã COMPLETED → backend tự trả bàn về EMPTY, chỉ cần reload
+                closeModal('statusModal');
+                loadTables();
+                return;
             }
         } catch (e) {
             console.warn('Không kiểm tra được order:', e.message);

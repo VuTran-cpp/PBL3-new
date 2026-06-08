@@ -122,6 +122,8 @@ namespace CafeManagement.Controllers
                     return BadRequest(new ApiResponse<OrderDto>(false, "Bàn không tồn tại", null));
                 if (table.Status == "OCCUPIED")
                     return BadRequest(new ApiResponse<OrderDto>(false, $"Bàn {table.Name} đang được sử dụng", null));
+                if (table.Status == "CLEANING")
+                    return BadRequest(new ApiResponse<OrderDto>(false, $"Bàn {table.Name} đang được dọn dẹp, vui lòng chờ hoặc chọn bàn khác", null));
             }
 
             // ✅ FIX: Tra cứu trạng thái PENDING từ DB thay vì hardcode ID = 1
@@ -246,6 +248,8 @@ namespace CafeManagement.Controllers
 
             _db.OrderItemOptions.RemoveRange(item.Options);
             _db.OrderItems.Remove(item);
+            await _db.SaveChangesAsync();
+
             await RecalculateOrderAsync(id);
             await _db.SaveChangesAsync();
 
@@ -292,6 +296,7 @@ namespace CafeManagement.Controllers
                 DiscountValue = discountValue
             });
             promotion.UsedCount++;
+            await _db.SaveChangesAsync();
 
             await RecalculateOrderAsync(id);
             await _db.SaveChangesAsync();
@@ -453,9 +458,28 @@ namespace CafeManagement.Controllers
                 .Where(oi => oi.OrderId == orderId)
                 .SumAsync(oi => (decimal?)oi.TotalPrice) ?? 0;
 
-            var discount = await _db.OrderPromotions
+            var orderPromotions = await _db.OrderPromotions
+                .Include(op => op.Promotion)
                 .Where(op => op.OrderId == orderId)
-                .SumAsync(op => (decimal?)op.DiscountValue) ?? 0;
+                .ToListAsync();
+
+            decimal discount = 0;
+            foreach (var op in orderPromotions)
+            {
+                var promotion = op.Promotion;
+                if (promotion.MinOrderValue.HasValue && subTotal < promotion.MinOrderValue)
+                {
+                    op.DiscountValue = 0;
+                }
+                else
+                {
+                    decimal discountValue = promotion.DiscountType == "PERCENT"
+                        ? Math.Min(subTotal * promotion.Value / 100, promotion.MaxDiscountValue ?? decimal.MaxValue)
+                        : promotion.Value;
+                    op.DiscountValue = discountValue;
+                }
+                discount += op.DiscountValue;
+            }
 
             var order = await _db.Orders.FindAsync(orderId);
             if (order != null)

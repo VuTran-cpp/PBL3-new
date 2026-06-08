@@ -1,3 +1,144 @@
-﻿.vs/
+﻿# =========================
+# Visual Studio
+# =========================
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio cache
+*.cache
+*.dbmdl
+*.VC.db
+*.VC.opendb
+
+# =========================
+# Build Results
+# =========================
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+build/
+bld/
+out/
+
+# Build folders
 bin/
 obj/
+
+# =========================
+# ASP.NET
+# =========================
+App_Data/*.mdf
+App_Data/*.ldf
+
+# IIS Express
+.vs/config/
+iisexpress/
+
+# =========================
+# NuGet
+# =========================
+packages/*
+!packages/build/
+!packages/repositories.config
+
+*.nupkg
+*.snupkg
+
+# =========================
+# Entity Framework
+# =========================
+*.edmx.diagram
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+Log/
+Logs/
+
+# =========================
+# Test Results
+# =========================
+[Tt]est[Rr]esult*/
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+*.coveragexml
+
+# =========================
+# Publish Output
+# =========================
+publish/
+Publish/
+wwwroot/dist/
+
+# =========================
+# Rider / ReSharper
+# =========================
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# =========================
+# JetBrains Rider
+# =========================
+.idea/
+
+# =========================
+# VS Code
+# =========================
+.vscode/
+
+# =========================
+# Node.js
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Windows
+# =========================
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+
+# =========================
+# SQL Server
+# =========================
+*.mdf
+*.ldf
+
+# =========================
+# Local database files
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# Generated files
+# =========================
+Generated/
+Generated_Code/
+
+# =========================
+# OS generated
+# =========================
+.DS_Store
