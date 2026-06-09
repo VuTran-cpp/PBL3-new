@@ -33,6 +33,12 @@
     .label-card * { color: #000 !important; }
     .label-no-print { display: none !important; }
 }
+
+/* ── Animation cho banner cảnh báo ca nhân viên ─────────── */
+@@keyframes slideDownWarning {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
 </style>
 }
 
@@ -307,9 +313,11 @@
     <div class="modal" style="max-width:400px;">
         <div class="modal-header">
             <div class="modal-title">🟢 Mở ca làm việc</div>
-            <button class="modal-close" onclick="closePosModal('posOpenShiftModal')">×</button>
         </div>
         <div class="modal-body">
+            <div style="background:rgba(231,76,60,.08);border:1px solid rgba(231,76,60,.2);border-radius:var(--r);padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--red);font-weight:600;">
+                ⚠️ Bạn phải mở ca làm việc trước khi sử dụng POS bán hàng.
+            </div>
             <div class="form-group">
                 <label class="form-label">Nhân viên ca trực <span style="color:var(--red)">*</span></label>
                 <select id="posShiftEmployeeId" class="form-control">
@@ -322,8 +330,9 @@
                 <div style="font-size:11px;color:var(--text3);margin-top:4px;">Số tiền mặt trong két khi bắt đầu ca</div>
             </div>
         </div>
-        <div class="modal-footer">
-            <button class="btn btn-success" style="width:100%;" onclick="submitPosOpenShift()">✅ Xác nhận mở ca</button>
+        <div class="modal-footer" style="display:flex;gap:8px;">
+            <button class="btn btn-outline" onclick="goBackFromPosShift()" style="flex:1;">↩️ Quay lại</button>
+            <button class="btn btn-success" style="flex:2;" onclick="submitPosOpenShift()">✅ Xác nhận mở ca</button>
         </div>
     </div>
 </div>
@@ -379,6 +388,7 @@
     let currentTakeawaySlot = null;        // số slot MV-1..MV-5 đang mở
     let isSaving            = false;       // ✅ FIX BUG-03: chặn double-click gây tạo đơn trùng
     let pendingPromoCode    = null;        // ✅ FIX BUG-02: lưu mã promo chưa ghi DB (chưa có orderId)
+    let isShiftOwner        = true;        // ✅ Kiểm tra nhân viên đăng nhập có phải người được mở ca không
 
 
     // ════════════════════════════════════════════════════════
@@ -389,10 +399,33 @@
             // 1. Lấy ca đang mở (bắt buộc có trước khi tạo order)
             const shift = await apiFetch(`/api/shifts/current/${BRANCH_ID}`);
             currentShiftId = shift.id;
-            showToast(`✅ Ca làm việc: #${currentShiftId} đang mở`);
+
+            // ✅ Kiểm tra nhân viên đăng nhập có phải người được mở ca không
+            // Manager/Admin được phép order tự do, chỉ STAFF bị ràng buộc
+            const userRole = (window.USER_ROLE || '').toUpperCase();
+            if (userRole !== 'MANAGER' && userRole !== 'ADMIN'
+                && shift.employeeId && window.EMPLOYEE_ID
+                && shift.employeeId !== window.EMPLOYEE_ID) {
+                isShiftOwner = false;
+                showToast(`⚠️ Ca đang mở cho ${shift.employeeName}. Bạn không thể tạo đơn hàng!`, 'error');
+                showShiftOwnerWarning(shift.employeeName);
+            } else {
+                isShiftOwner = true;
+                showToast(`✅ Ca làm việc: #${currentShiftId} đang mở`);
+                hideShiftOwnerWarning();
+            }
         } catch (err) {
             currentShiftId = null;
-            openShiftModal();
+            isShiftOwner = false;
+            const userRole = (window.USER_ROLE || '').toUpperCase();
+            if (userRole === 'MANAGER' || userRole === 'ADMIN') {
+                // Manager/Admin: cho phép mở ca mới
+                isShiftOwner = true;
+                openShiftModal();
+            } else {
+                // Staff: chặn hoàn toàn, không cho tự mở ca
+                showNoShiftBlockingWarning();
+            }
             console.warn('Shift warning:', err.message);
         }
 
@@ -416,6 +449,36 @@
 
         // 6. Cập nhật tóm tắt khu vực
         updateAreaSummary();
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  CẢNH BÁO NHÂN VIÊN KHÔNG ĐÚNG CA
+    // ════════════════════════════════════════════════════════
+    function showShiftOwnerWarning(shiftEmployeeName) {
+        // Xóa banner cũ nếu có
+        hideShiftOwnerWarning();
+        const banner = document.createElement('div');
+        banner.id = 'shiftOwnerWarning';
+        banner.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: #fff; padding: 14px 24px; text-align: center;
+            font-size: 14px; font-weight: 700;
+            box-shadow: 0 4px 20px rgba(231, 76, 60, 0.4);
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            animation: slideDownWarning 0.4s ease;
+        `;
+        banner.innerHTML = `
+            <span style="font-size: 20px;">🚫</span>
+            <span>Ca đang mở cho <strong>${shiftEmployeeName}</strong> — Bạn không thể tạo đơn hàng trong ca này.</span>
+            <span style="font-size: 20px;">🚫</span>
+        `;
+        document.body.appendChild(banner);
+    }
+
+    function hideShiftOwnerWarning() {
+        const existing = document.getElementById('shiftOwnerWarning');
+        if (existing) existing.remove();
     }
 
     // ════════════════════════════════════════════════════════
@@ -515,6 +578,25 @@
 
     // ── Mở đơn MANG VỀ theo slot số (MV-1..MV-5) ────────────────
     async function openTakeaway(slotNum) {
+        // ✅ Chặn khi chưa mở ca
+        if (!currentShiftId) {
+            const userRole = (window.USER_ROLE || '').toUpperCase();
+            if (userRole === 'MANAGER' || userRole === 'ADMIN') {
+                showToast('❌ Chưa mở ca làm việc! Vui lòng mở ca trước.', 'error');
+                openShiftModal();
+            } else {
+                showToast('❌ Chưa có ca làm việc! Liên hệ quản lý để mở ca.', 'error');
+            }
+            return;
+        }
+        // ✅ Chặn tạo đơn mang về mới nếu không phải nhân viên ca
+        const slotEl = document.getElementById(`takeaway-slot-${slotNum}`);
+        const isBusySlot = slotEl && slotEl.classList.contains('tc-takeaway-busy');
+        if (!isShiftOwner && !isBusySlot) {
+            showToast('🚫 Ca hiện tại đang mở cho nhân viên khác. Bạn không thể tạo đơn mang về!', 'error');
+            return;
+        }
+
         currentOrderType     = 'TAKE_AWAY';
         currentTakeawaySlot  = slotNum || 1;
         currentTableId       = null;
@@ -586,8 +668,46 @@
 
     // ── SHIFT MANAGEMENT FUNCTIONS ON POS ──────────────────
     function openShiftModal() {
+        // Chỉ Manager/Admin mới được mở ca từ POS
+        const userRole = (window.USER_ROLE || '').toUpperCase();
+        if (userRole !== 'MANAGER' && userRole !== 'ADMIN') {
+            showToast('🚫 Bạn không có quyền mở ca. Liên hệ quản lý!', 'error');
+            return;
+        }
         loadBranchEmployees();
         document.getElementById('posOpenShiftModal').classList.add('active');
+    }
+
+    // Hiển thị cảnh báo chặn toàn bộ màn hình cho Staff khi chưa có ca
+    function showNoShiftBlockingWarning() {
+        hideShiftOwnerWarning();
+        const banner = document.createElement('div');
+        banner.id = 'shiftOwnerWarning';
+        banner.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: #fff; padding: 18px 24px; text-align: center;
+            font-size: 15px; font-weight: 700;
+            box-shadow: 0 4px 20px rgba(231, 76, 60, 0.4);
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            animation: slideDownWarning 0.4s ease;
+        `;
+        banner.innerHTML = `
+            <span style="font-size: 22px;">🚫</span>
+            <span>Chưa có ca làm việc đang mở. Liên hệ <strong>Quản lý</strong> để mở ca trước khi bán hàng.</span>
+            <span style="font-size: 22px;">🚫</span>
+        `;
+        document.body.appendChild(banner);
+    }
+
+    // Nút "Quay lại" khi chưa mở ca: redirect về Dashboard (Manager) hoặc trang Login
+    function goBackFromPosShift() {
+        const role = (window.USER_ROLE || '').toUpperCase();
+        if (role === 'MANAGER' || role === 'ADMIN') {
+            window.location.href = '/Dashboard';
+        } else {
+            window.location.href = '/Login';
+        }
     }
 
     async function loadBranchEmployees() {
@@ -639,7 +759,22 @@
             });
             currentShiftId = newShift.id;
             closePosModal('posOpenShiftModal');
-            showToast(`✅ Mở ca thành công! Ca #${currentShiftId} đang hoạt động.`);
+
+            // ✅ Cập nhật isShiftOwner khi mở ca mới từ POS
+            const userRole = (window.USER_ROLE || '').toUpperCase();
+            if (userRole === 'MANAGER' || userRole === 'ADMIN'
+                || parseInt(empId) === window.EMPLOYEE_ID) {
+                isShiftOwner = true;
+                hideShiftOwnerWarning();
+                showToast(`✅ Mở ca thành công! Ca #${currentShiftId} đang hoạt động.`);
+            } else {
+                isShiftOwner = false;
+                // Lấy tên nhân viên đã chọn từ dropdown
+                const selectedOpt = document.getElementById('posShiftEmployeeId');
+                const empName = selectedOpt.options[selectedOpt.selectedIndex]?.text || 'nhân viên khác';
+                showShiftOwnerWarning(empName);
+                showToast(`⚠️ Ca mở cho ${empName}. Bạn không thể tạo đơn hàng!`, 'error');
+            }
             
             // Reload layout shift badge
             if (window.loadShiftStatus) {
@@ -895,12 +1030,30 @@
     //  MỞ PANEL ORDER
     // ════════════════════════════════════════════════════════
     async function openOrder(tableId, tableName, status) {
+        // ✅ Chặn khi chưa mở ca
+        if (!currentShiftId) {
+            const userRole = (window.USER_ROLE || '').toUpperCase();
+            if (userRole === 'MANAGER' || userRole === 'ADMIN') {
+                showToast('❌ Chưa mở ca làm việc! Vui lòng mở ca trước.', 'error');
+                openShiftModal();
+            } else {
+                showToast('❌ Chưa có ca làm việc! Liên hệ quản lý để mở ca.', 'error');
+            }
+            return;
+        }
+
         const tableEl = document.getElementById(`table-${tableId}`);
         const realStatus = tableEl ? (tableEl.classList.contains('occupied') ? 'occupied' : tableEl.classList.contains('cleaning') ? 'cleaning' : 'empty') : status;
 
         // ✅ FIX: Chặn mở order khi bàn đang dọn
         if (realStatus === 'cleaning') {
             showToast(`🧹 Bàn "${tableName}" đang được dọn dẹp!\nVui lòng chờ hoặc chọn bàn khác.`, 'error');
+            return;
+        }
+
+        // ✅ Chặn tạo đơn mới nếu không phải nhân viên ca (cho phép xem đơn đã có)
+        if (!isShiftOwner && realStatus !== 'occupied') {
+            showToast('🚫 Ca hiện tại đang mở cho nhân viên khác. Bạn không thể tạo đơn hàng mới!', 'error');
             return;
         }
 
@@ -1217,6 +1370,12 @@
     async function saveOrder() {
         if (currentCart.length === 0) { showToast('⚠️ Giỏ hàng trống!', 'warn'); return; }
         if (!currentShiftId) { showToast('❌ Chưa mở ca làm việc!', 'error'); return; }
+
+        // ✅ Kiểm tra nhân viên có quyền order trong ca này không
+        if (!isShiftOwner) {
+            showToast('❌ Ca hiện tại đang mở cho nhân viên khác. Bạn không được phép tạo đơn hàng!', 'error');
+            return;
+        }
 
         // ✅ FIX: Kiểm tra bàn có đang dọn không trước khi lưu đơn
         if (currentOrderType === 'DINE_IN' && currentTableId && !currentOrderId) {

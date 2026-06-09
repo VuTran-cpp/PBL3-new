@@ -42,6 +42,8 @@ namespace CafeManagement.DTOs
     public record AccountDto(int Id, int EmployeeId, string FullName, string Username, string RoleName);
     public record CreateAccountRequest(int EmployeeId, int RoleId, string Username, string Password);
     public record ChangePasswordRequest(string OldPassword, string NewPassword);
+    public record ResetPasswordByManagerRequest(int EmployeeId, string NewPassword);
+    public record ChangePasswordByUsernameRequest(string Username, string OldPassword, string NewPassword);
 
     // ================================================================
     // CUSTOMER

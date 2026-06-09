@@ -110,6 +110,27 @@ namespace CafeManagement.Controllers
             if (shift == null)
                 return BadRequest(new ApiResponse<OrderDto>(false, "Ca làm việc không hợp lệ hoặc đã đóng", null));
 
+            // ✅ Kiểm tra nhân viên đăng nhập có phải là người được mở ca không
+            // Chỉ nhân viên được gán ca mới được tạo order (Manager/Admin được phép)
+            var accountId = GetAccountId();
+            if (accountId.HasValue)
+            {
+                var currentAccount = await _db.Accounts
+                    .FirstOrDefaultAsync(a => a.Id == accountId.Value);
+                if (currentAccount != null)
+                {
+                    var role = await _db.Roles.FirstOrDefaultAsync(r => r.Id == currentAccount.RoleId);
+                    var roleName = role?.Name?.ToUpper() ?? "";
+                    // Chỉ STAFF bị ràng buộc, MANAGER/ADMIN được phép order tự do
+                    if (roleName != "MANAGER" && roleName != "ADMIN"
+                        && currentAccount.EmployeeId != shift.EmployeeId)
+                    {
+                        return BadRequest(new ApiResponse<OrderDto>(false,
+                            $"Ca hiện tại đang mở cho nhân viên khác. Bạn không được phép tạo đơn hàng trong ca này.", null));
+                    }
+                }
+            }
+
             // ✅ FIX BUG-06: DINE_IN bắt buộc phải có TableId
             if (request.OrderType.ToUpper() == "DINE_IN" && !request.TableId.HasValue)
                 return BadRequest(new ApiResponse<OrderDto>(false, "Đơn ăn tại chỗ (DINE_IN) phải chọn bàn", null));

@@ -28,6 +28,13 @@
         </div>
         <div class="modal-body">
             <div class="form-group">
+                <label class="form-label">Nhân viên mở ca <span style="color:var(--red)">*</span></label>
+                <select id="shiftEmployeeId" class="form-control">
+                    <option value="">-- Chọn nhân viên --</option>
+                </select>
+                <div style="font-size:12px;color:var(--text3);margin-top:4px;">Chọn nhân viên sẽ trực ca này</div>
+            </div>
+            <div class="form-group">
                 <label class="form-label">Tiền đầu ca (đ) <span style="color:var(--red)">*</span></label>
                 <input type="number" id="startingCash" class="form-control" placeholder="VD: 500000" min="0" value="0">
                 <div style="font-size:12px;color:var(--text3);margin-top:4px;">Số tiền mặt trong két khi bắt đầu ca</div>
@@ -413,21 +420,52 @@ function submitEmployeeCash() {
 
 function showOpenShift() {
     document.getElementById('startingCash').value = '0';
+    loadShiftEmployees();
     document.getElementById('openShiftModal').classList.add('active');
 }
 
+async function loadShiftEmployees() {
+    try {
+        const res = await apiFetch(`/api/employees?branchId=${BRANCH_ID}&pageSize=100`);
+        const select = document.getElementById('shiftEmployeeId');
+        select.innerHTML = '<option value="">-- Chọn nhân viên --</option>';
+        if (res && res.items) {
+            res.items.forEach(emp => {
+                const opt = document.createElement('option');
+                opt.value = emp.id;
+                opt.textContent = `${emp.fullName} (${emp.position})`;
+                select.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        console.error('loadShiftEmployees error:', err);
+        showToast('❌ Lỗi tải danh sách nhân viên: ' + err.message, 'error');
+    }
+}
+
 async function openShift() {
+    const empId = document.getElementById('shiftEmployeeId').value;
+    if (!empId) {
+        showToast('⚠️ Vui lòng chọn nhân viên mở ca!', 'warn');
+        return;
+    }
     const cash = parseFloat(document.getElementById('startingCash').value) || 0;
+    if (cash < 0) {
+        showToast('⚠️ Tiền đầu ca không thể âm!', 'warn');
+        return;
+    }
     try {
         await apiFetch('/api/shifts/open', {
             method: 'POST',
             body: JSON.stringify({
                 BranchId: BRANCH_ID,
-                EmployeeId: EMPLOYEE_ID || 1,
+                EmployeeId: parseInt(empId),
                 StartingCash: cash
             })
         });
-        showToast('✅ Mở ca thành công!');
+        const selectedOpt = document.getElementById('shiftEmployeeId');
+        const empName = selectedOpt.options[selectedOpt.selectedIndex]?.text || '';
+        showToast(`✅ Mở ca thành công cho ${empName}!`);
         closeModal('openShiftModal');
         loadShift();
     } catch(e) {

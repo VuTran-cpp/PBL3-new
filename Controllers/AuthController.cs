@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -67,6 +67,46 @@ namespace CafeManagement.Controllers
 
             if (account == null || !BCrypt.Net.BCrypt.Verify(request.OldPassword, account.PasswordHash))
                 return BadRequest(new ApiResponse<object>(false, "Mật khẩu cũ không đúng", null));
+
+            account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            account.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            return Ok(new ApiResponse<object>(true, "Đổi mật khẩu thành công", null));
+        }
+
+        /// <summary>Manager/Admin reset mật khẩu cho nhân viên (không cần mật khẩu cũ)</summary>
+        [HttpPost("reset-password-by-manager")]
+        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "MANAGER,ADMIN")]
+        public async Task<ActionResult<ApiResponse<object>>> ResetPasswordByManager([FromBody] ResetPasswordByManagerRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+                return BadRequest(new ApiResponse<object>(false, "Mật khẩu mới phải có ít nhất 6 ký tự", null));
+
+            var account = await _db.Accounts.FirstOrDefaultAsync(a => a.EmployeeId == request.EmployeeId && !a.IsDeleted);
+            if (account == null)
+                return NotFound(new ApiResponse<object>(false, "Không tìm thấy tài khoản của nhân viên này", null));
+
+            account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            account.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            return Ok(new ApiResponse<object>(true, "Đặt lại mật khẩu nhân viên thành công", null));
+        }
+
+        /// <summary>Đổi mật khẩu theo username (không cần đăng nhập — dùng ở trang Login)</summary>
+        [HttpPost("change-password-by-username")]
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        public async Task<ActionResult<ApiResponse<object>>> ChangePasswordByUsername([FromBody] ChangePasswordByUsernameRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+                return BadRequest(new ApiResponse<object>(false, "Mật khẩu mới phải có ít nhất 6 ký tự", null));
+
+            var account = await _db.Accounts
+                .FirstOrDefaultAsync(a => a.Username == request.Username && !a.IsDeleted);
+
+            if (account == null || !BCrypt.Net.BCrypt.Verify(request.OldPassword, account.PasswordHash))
+                return BadRequest(new ApiResponse<object>(false, "Tên đăng nhập hoặc mật khẩu cũ không đúng", null));
 
             account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
             account.UpdatedAt = DateTime.UtcNow;

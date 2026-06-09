@@ -114,26 +114,26 @@
 <div class="modal-overlay" id="pwdModal">
     <div class="modal">
         <div class="modal-header">
-            <div class="modal-title">🔑 Đổi mật khẩu</div>
+            <div class="modal-title">🔑 Đặt lại mật khẩu nhân viên</div>
             <button class="modal-close" onclick="closeModal('pwdModal')">×</button>
         </div>
         <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label">Mật khẩu cũ <span style="color:var(--red)">*</span></label>
-                <input type="password" id="oldPwd" class="form-control" placeholder="Nhập mật khẩu hiện tại">
+            <div style="padding:12px 16px;background:var(--surface2);border-radius:var(--r);border-left:4px solid var(--amber);margin-bottom:16px;">
+                <div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:4px;">⚠️ LƯU Ý</div>
+                <div style="font-size:13px;color:var(--text2);">Bạn đang đặt lại mật khẩu cho nhân viên <strong id="pwdEmpName"></strong>. Nhân viên sẽ cần dùng mật khẩu mới để đăng nhập.</div>
             </div>
             <div class="form-group">
                 <label class="form-label">Mật khẩu mới <span style="color:var(--red)">*</span></label>
-                <input type="password" id="newPwd" class="form-control" placeholder="Tối thiểu 6 ký tự">
+                <input type="password" id="resetNewPwd" class="form-control" placeholder="Tối thiểu 6 ký tự">
             </div>
             <div class="form-group">
                 <label class="form-label">Xác nhận mật khẩu mới <span style="color:var(--red)">*</span></label>
-                <input type="password" id="confirmPwd" class="form-control" placeholder="Nhập lại mật khẩu mới">
+                <input type="password" id="resetConfirmPwd" class="form-control" placeholder="Nhập lại mật khẩu mới">
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline" onclick="closeModal('pwdModal')">Hủy</button>
-            <button class="btn btn-primary" onclick="changePassword()">🔑 Đổi mật khẩu</button>
+            <button class="btn btn-primary" onclick="resetEmployeePassword()">🔑 Đặt lại mật khẩu</button>
         </div>
     </div>
 </div>
@@ -256,19 +256,19 @@ async function saveEmployee() {
     } catch(e) { showToast('❌ ' + e.message, 'error'); }
 }
 
-async function changePassword() {
-    const oldPwd  = document.getElementById('oldPwd').value;
-    const newPwd  = document.getElementById('newPwd').value;
-    const confirm = document.getElementById('confirmPwd').value;
-    if (!oldPwd || !newPwd) { showToast('⚠️ Nhập đầy đủ mật khẩu!', 'warn'); return; }
-    if (newPwd !== confirm) { showToast('⚠️ Mật khẩu mới không khớp!', 'warn'); return; }
+async function resetEmployeePassword() {
+    const empId   = document.getElementById('pwdModal').dataset.empId;
+    const newPwd  = document.getElementById('resetNewPwd').value;
+    const confirm = document.getElementById('resetConfirmPwd').value;
+    if (!newPwd) { showToast('⚠️ Nhập mật khẩu mới!', 'warn'); return; }
     if (newPwd.length < 6) { showToast('⚠️ Mật khẩu mới tối thiểu 6 ký tự!', 'warn'); return; }
+    if (newPwd !== confirm) { showToast('⚠️ Mật khẩu mới không khớp!', 'warn'); return; }
     try {
-        await apiFetch('/api/auth/change-password', {
+        await apiFetch('/api/auth/reset-password-by-manager', {
             method: 'POST',
-            body: JSON.stringify({ OldPassword: oldPwd, NewPassword: newPwd })
+            body: JSON.stringify({ EmployeeId: parseInt(empId), NewPassword: newPwd })
         });
-        showToast('✅ Đổi mật khẩu thành công!');
+        showToast('✅ Đặt lại mật khẩu nhân viên thành công!');
         closeModal('pwdModal');
     } catch(e) { showToast('❌ ' + e.message, 'error'); }
 }
@@ -276,9 +276,10 @@ async function changePassword() {
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
 function openPwdModal(empId) {
-    document.getElementById('oldPwd').value = '';
-    document.getElementById('newPwd').value = '';
-    document.getElementById('confirmPwd').value = '';
+    const emp = allEmployees.find(e => e.id === empId);
+    document.getElementById('resetNewPwd').value = '';
+    document.getElementById('resetConfirmPwd').value = '';
+    document.getElementById('pwdEmpName').textContent = emp ? emp.fullName : `ID ${empId}`;
     document.getElementById('pwdModal').dataset.empId = empId || '';
     document.getElementById('pwdModal').classList.add('active');
 }
